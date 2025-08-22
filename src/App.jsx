@@ -1,5 +1,6 @@
 import React, { Suspense, lazy } from 'react'
 import { BrowserRouter, Routes, Route, Link, NavLink } from 'react-router-dom'
+import { AuthProvider } from './auth.jsx'
 
 const TimeTracker = lazy(() => import('./TimeTracker.jsx'))
 const ProjectsAdmin = lazy(() => import('./ProjectsAdmin.jsx'))
@@ -38,20 +39,22 @@ function Home() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Home/>} />
-        <Route path="/time" element={
-          <Suspense fallback={<div className="text-neutral-400">Loading…</div>}>
-            <Shell><TimeTracker /></Shell>
-          </Suspense>
-        } />
-        <Route path="/projects" element={
-          <Suspense fallback={<div className="text-neutral-400">Loading…</div>}>
-            <Shell><ProjectsAdmin /></Shell>
-          </Suspense>
-        } />
-      </Routes>
-    </BrowserRouter>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Home/>} />
+          <Route path="/time" element={
+            <Suspense fallback={<div className="text-neutral-400">Loading…</div>}>
+              <Shell><TimeTracker /></Shell>
+            </Suspense>
+          } />
+          <Route path="/projects" element={
+            <Suspense fallback={<div className="text-neutral-400">Loading…</div>}>
+              <Shell><ProjectsAdmin /></Shell>
+            </Suspense>
+          } />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   )
 }
