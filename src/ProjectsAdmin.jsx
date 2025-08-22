@@ -1,11 +1,12 @@
 // src/ProjectsAdmin.jsx
-import { useEffect, useMemo, useState } from 'react'
-import Select from './components/Select.jsx'
+import { useEffect, useState } from 'react'
+import { useAuth, SignInButton } from './auth.jsx'
+import Select from './components/Select' // ensure file is Select.jsx
 
 const API_BASE = '/.netlify/functions/time-api'
 
 export default function ProjectsAdmin() {
-  const [user, setUser] = useState(null) // {token}
+  const { token } = useAuth()
   const [settings, setSettings] = useState({ priorities: [], statuses: [], stages: [], health: [], riskLevels: [] })
   const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState(false)
@@ -22,50 +23,23 @@ export default function ProjectsAdmin() {
     ColorHex: '',
   })
 
-  // Google Sign-In init
-  useEffect(() => {
-    const script = document.createElement('script')
-    script.src = 'https://accounts.google.com/gsi/client'
-    script.async = true
-    script.onload = () => {
-      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
-      if (!clientId) {
-        console.warn('VITE_GOOGLE_CLIENT_ID is not set. Google Sign-In will not work.')
-      }
-      window.google?.accounts.id.initialize({
-        client_id: clientId,
-        callback: (resp) => setUser({ token: resp.credential }),
-      })
-      window.google?.accounts.id.renderButton(
-        document.getElementById('gsi-btn-projects'),
-        { theme: 'outline', size: 'large' }
-      )
-    }
-    document.body.appendChild(script)
-  }, [])
-
   async function authedFetch(url, opts = {}) {
     const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) }
-    if (user?.token) headers['Authorization'] = `Bearer ${user.token}`
+    if (token) headers['Authorization'] = `Bearer ${token}`
     const res = await fetch(url, { ...opts, headers })
     if (!res.ok) throw new Error((await res.json()).error || 'Request failed')
     return res.json()
   }
 
   useEffect(() => {
-    if (!user?.token) return
+    if (!token) return
     ;(async () => {
       const s = await authedFetch(`${API_BASE}?action=get-settings`)
       setSettings(s)
       const p = await authedFetch(`${API_BASE}?action=list-projects`)
       setProjects(p.projects || [])
     })().catch(e => alert(e.message))
-  }, [user?.token])
-
-  const priorities = settings.priorities || []
-  const statuses = settings.statuses || []
-  const stages = settings.stages || []
-  const health = settings.health || []
+  }, [token])
 
   async function createProject() {
     if (!form.ProjectName) return alert('Project name is required')
@@ -90,10 +64,10 @@ export default function ProjectsAdmin() {
     <div className="space-y-6">
       <header className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Projects</h1>
-        {!user?.token && <div id="gsi-btn-projects" />}
+        {!token && <SignInButton id="gsi-btn-projects" />}
       </header>
 
-      {user?.token && (
+      {token && (
         <section className="bg-neutral-900/50 rounded-2xl p-5 border border-neutral-800">
           <h2 className="text-lg mb-3">Create Project</h2>
           <div className="grid sm:grid-cols-3 gap-3">
@@ -105,10 +79,10 @@ export default function ProjectsAdmin() {
               <span className="text-neutral-300">Client Name</span>
               <input className="bg-neutral-800 rounded-xl p-3 outline-none border border-neutral-700" value={form.ClientName} onChange={e=>setForm({...form, ClientName:e.target.value})} placeholder="Client Co."/>
             </label>
-            <Select label="Priority" value={form.Priority} onChange={v=>setForm({...form, Priority:v})} options={priorities} />
-            <Select label="Status" value={form.Status} onChange={v=>setForm({...form, Status:v})} options={statuses} />
-            <Select label="Stage" value={form.Stage} onChange={v=>setForm({...form, Stage:v})} options={stages} />
-            <Select label="Health" value={form.Health} onChange={v=>setForm({...form, Health:v})} options={health} />
+            <Select label="Priority" value={form.Priority} onChange={v=>setForm({...form, Priority:v})} options={settings.priorities || []} />
+            <Select label="Status" value={form.Status} onChange={v=>setForm({...form, Status:v})} options={settings.statuses || []} />
+            <Select label="Stage" value={form.Stage} onChange={v=>setForm({...form, Stage:v})} options={settings.stages || []} />
+            <Select label="Health" value={form.Health} onChange={v=>setForm({...form, Health:v})} options={settings.health || []} />
             <label className="grid gap-1 text-sm">
               <span className="text-neutral-300">Start Date</span>
               <input type="date" className="bg-neutral-800 rounded-xl p-3 outline-none border border-neutral-700" value={form.StartDate} onChange={e=>setForm({...form, StartDate:e.target.value})}/>
@@ -128,7 +102,7 @@ export default function ProjectsAdmin() {
         </section>
       )}
 
-      {user?.token && (
+      {token && (
         <section className="bg-neutral-900/50 rounded-2xl p-5 border border-neutral-800">
           <h2 className="text-lg mb-3">All Projects</h2>
           <div className="overflow-x-auto">

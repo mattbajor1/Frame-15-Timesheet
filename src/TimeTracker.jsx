@@ -1,5 +1,6 @@
 // src/TimeTracker.jsx
 import { useEffect, useMemo, useState } from 'react'
+import { useAuth, SignInButton } from './auth.jsx'
 
 const API_BASE = '/.netlify/functions/time-api'
 
@@ -10,7 +11,7 @@ function isoToLocalTime(iso) {
 }
 
 export default function TimeTracker() {
-  const [user, setUser] = useState(null) // {token}
+  const { token } = useAuth()
   const [meta, setMeta] = useState({ user: { color: '#888' }, projects: [], tasksMap: {} })
   const [status, setStatus] = useState({ active: false, session: null })
   const [projectNumber, setProjectNumber] = useState('')
@@ -18,38 +19,16 @@ export default function TimeTracker() {
   const [entries, setEntries] = useState({ entries: [], totalMinutes: 0 })
   const [loading, setLoading] = useState(false)
 
-  // Google Sign-In init
-  useEffect(() => {
-    const script = document.createElement('script')
-    script.src = 'https://accounts.google.com/gsi/client'
-    script.async = true
-    script.onload = () => {
-      const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
-      if (!clientId) {
-        console.warn('VITE_GOOGLE_CLIENT_ID is not set. Google Sign-In will not work.')
-      }
-      window.google?.accounts.id.initialize({
-        client_id: clientId,
-        callback: (resp) => setUser({ token: resp.credential }),
-      })
-      window.google?.accounts.id.renderButton(
-        document.getElementById('gsi-btn'),
-        { theme: 'outline', size: 'large' }
-      )
-    }
-    document.body.appendChild(script)
-  }, [])
-
   async function authedFetch(url, opts = {}) {
     const headers = { 'Content-Type': 'application/json', ...(opts.headers || {}) }
-    if (user?.token) headers['Authorization'] = `Bearer ${user.token}`
+    if (token) headers['Authorization'] = `Bearer ${token}`
     const res = await fetch(url, { ...opts, headers })
     if (!res.ok) throw new Error((await res.json()).error || 'Request failed')
     return res.json()
   }
 
   useEffect(() => {
-    if (!user?.token) return
+    if (!token) return
     ;(async () => {
       const m = await authedFetch(`${API_BASE}?action=meta`)
       setMeta(m)
@@ -58,7 +37,7 @@ export default function TimeTracker() {
       const en = await authedFetch(`${API_BASE}?action=entries`)
       setEntries(en)
     })().catch(console.error)
-  }, [user?.token])
+  }, [token])
 
   const projectOptions = (meta.projects || []).map(p => ({
     value: String(p.number || p.ProjectNumber || p),
@@ -71,7 +50,10 @@ export default function TimeTracker() {
     if (!projectNumber) return alert('Pick a project')
     setLoading(true)
     try {
-      await authedFetch(`${API_BASE}?action=clockin`, { method: 'POST', body: JSON.stringify({ projectNumber, task }) })
+      await authedFetch(`${API_BASE}?action=clockin`, {
+        method: 'POST',
+        body: JSON.stringify({ projectNumber, task })
+      })
       const [st, en] = await Promise.all([
         authedFetch(`${API_BASE}?action=status`),
         authedFetch(`${API_BASE}?action=entries`),
@@ -100,10 +82,10 @@ export default function TimeTracker() {
     <div className="space-y-6">
       <header className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Time Tracker</h1>
-        {!user?.token && <div id="gsi-btn" />}
+        {!token && <SignInButton id="gsi-btn-time" />}
       </header>
 
-      {user?.token && (
+      {token && (
         <div className="grid md:grid-cols-3 gap-6">
           <section className="md:col-span-2 bg-neutral-900/50 rounded-2xl p-5 border border-neutral-800">
             <div className="flex flex-wrap items-center gap-4 mb-4">
@@ -173,7 +155,7 @@ export default function TimeTracker() {
         </div>
       )}
 
-      {user?.token && (
+      {token && (
         <section className="bg-neutral-900/50 rounded-2xl p-5 border border-neutral-800">
           <h2 className="text-xl mb-4">Recent Sessions</h2>
           <div className="overflow-x-auto">
@@ -205,11 +187,11 @@ export default function TimeTracker() {
         </section>
       )}
 
-      {!user?.token && (
+      {!token && (
         <section className="bg-neutral-900/30 rounded-2xl p-5 border border-neutral-800">
           <p className="text-neutral-300">Sign in with Google to start tracking time.</p>
           <p className="text-neutral-500 text-sm">
-            (Dev mode: backend accepts an <code>email</code> field if you want to test without Google Sign‑In.)
+            (Dev mode: backend accepts an <code>email</code> field if you want to test without Google Sign-In.)
           </p>
         </section>
       )}
