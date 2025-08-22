@@ -1,16 +1,22 @@
-
 // netlify/functions/time-api.js
 const { google } = require('googleapis')
 const { OAuth2Client } = require('google-auth-library')
 
-// ---- ENV ----
+// ─── Env ───────────────────────────────────────────────────────────────────────
 const SHEET_ID = process.env.GOOGLE_SHEET_ID
-const CLIENT_EMAIL = process.env.GOOGLE_CLIENT_EMAIL
-const PRIVATE_KEY = (process.env.GOOGLE_PRIVATE_KEY || '').replace(/\\n/g, '\n')
+
+// Frontend (for verifying the user's ID token)
 const OAUTH_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
 
-const ALLOWED_EMAILS = (process.env.ALLOWED_EMAILS || '').split(',').map(s=>s.trim().toLowerCase()).filter(Boolean)
+// Server-side OAuth to call Sheets (no service account / no private key)
+const OAUTH_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET
+const OAUTH_REFRESH_TOKEN = process.env.GOOGLE_REFRESH_TOKEN
+
+// Allowlist
+const ALLOWED_EMAILS = (process.env.ALLOWED_EMAILS || '')
+  .split(',').map(s => s.trim().toLowerCase()).filter(Boolean)
 const ALLOWED_EMAIL_DOMAIN = (process.env.ALLOWED_EMAIL_DOMAIN || '').toLowerCase()
+
 function isAllowed(email) {
   const e = (email || '').toLowerCase()
   if (!e) return false
@@ -19,16 +25,24 @@ function isAllowed(email) {
   return false
 }
 
-const authJWT = new google.auth.JWT(
-  CLIENT_EMAIL,
-  null,
-  PRIVATE_KEY,
-  ['https://www.googleapis.com/auth/spreadsheets']
-)
-const sheets = google.sheets({ version: 'v4', auth: authJWT })
+// Basic env sanity (prints in Netlify logs if something is missing)
+;[['GOOGLE_SHEET_ID', SHEET_ID],
+  ['GOOGLE_CLIENT_ID', OAUTH_CLIENT_ID],
+  ['GOOGLE_CLIENT_SECRET', OAUTH_CLIENT_SECRET],
+  ['GOOGLE_REFRESH_TOKEN', OAUTH_REFRESH_TOKEN],
+].forEach(([name, val]) => { if (!val) console.warn(`Missing ${name}`) })
+
+// ─── Google clients ────────────────────────────────────────────────────────────
+// ID token verifier for the browser session
 const oauthClient = new OAuth2Client(OAUTH_CLIENT_ID)
 
-// ---- Helpers ----
+// OAuth2 client (uses your refresh token to mint access tokens to call Sheets)
+const oauth2 = new google.auth.OAuth2(OAUTH_CLIENT_ID, OAUTH_CLIENT_SECRET)
+oauth2.setCredentials({ refresh_token: OAUTH_REFRESH_TOKEN })
+
+const sheets = google.sheets({ version: 'v4', auth: oauth2 })
+
+// ─── Helpers ───────────────────────────────────────────────────────────────────
 const cors = (body, statusCode = 200, headers = {}) => ({
   statusCode,
   headers: {
@@ -49,6 +63,7 @@ async function verifyAndGetEmail(event) {
     const payload = ticket.getPayload()
     return { email: payload.email, name: payload.name || '' }
   }
+  // Dev fallback (optional): POST { email }
   try {
     const body = event.body ? JSON.parse(event.body) : {}
     if (body.email) return { email: body.email, name: body.name || '' }
@@ -60,7 +75,6 @@ async function readRange(range) {
   const res = await sheets.spreadsheets.values.get({ spreadsheetId: SHEET_ID, range })
   return res.data.values || []
 }
-
 async function appendRow(range, row) {
   await sheets.spreadsheets.values.append({
     spreadsheetId: SHEET_ID,
@@ -69,7 +83,6 @@ async function appendRow(range, row) {
     requestBody: { values: [row] },
   })
 }
-
 async function writeRange(range, values) {
   await sheets.spreadsheets.values.update({
     spreadsheetId: SHEET_ID,
@@ -78,10 +91,9 @@ async function writeRange(range, values) {
     requestBody: { values },
   })
 }
-
 function nowISO() { return new Date().toISOString() }
 
-// ---- Settings ----
+// ─── Settings ──────────────────────────────────────────────────────────────────
 async function getSettings() {
   const rows = await readRange('Settings!A:B')
   const kv = {}
@@ -95,11 +107,11 @@ async function getSettings() {
     statuses: split('Statuses'),
     stages: split('Stages'),
     riskLevels: split('RiskLevels'),
-    health: split('HealthStatuses')
+    health: split('HealthStatuses'),
   }
 }
 
-// ---- Projects ----
+// ─── Projects ──────────────────────────────────────────────────────────────────
 const PROJECT_HEADERS = [
   "ProjectNumber","ProjectName","ClientName","ClientID","Priority","Status","Stage","Health",
   "ProjectManagerEmail","OwnerEmail",
@@ -108,39 +120,30 @@ const PROJECT_HEADERS = [
   "BriefLink","StorageLink","EditLink","SlackChannel","DriveFolder","VimeoAlbum","OtherLinks",
   "Tags","ColorHex","RiskLevel","Notes","CreatedAtISO","UpdatedAtISO","Archived"
 ]
-
 function rowToObj(row) {
   const obj = {}
   PROJECT_HEADERS.forEach((h, i) => obj[h] = row[i] || '')
   if (obj.ProjectNumber) obj.ProjectNumber = parseInt(obj.ProjectNumber, 10)
   return obj
 }
-
 async function ensureProjectHeaders() {
   const rows = await readRange('Projects!1:1')
-  const first = rows[0] || []
-  if (first.length === 0) {
+  if ((rows[0] || []).length === 0) {
     await writeRange('Projects!1:1', [PROJECT_HEADERS])
   }
 }
-
 async function listProjects() {
   await ensureProjectHeaders()
   const rows = await readRange('Projects!A2:AJ')
   return rows.filter(r => r[0]).map(rowToObj)
 }
-
 async function nextProjectNumber() {
   const rows = await readRange('Projects!A:A')
   let maxNum = 999
-  rows.forEach(r => {
-    const n = parseInt(r[0], 10)
-    if (!isNaN(n) && n > maxNum) maxNum = n
-  })
+  rows.forEach(r => { const n = parseInt(r[0], 10); if (!isNaN(n) && n > maxNum) maxNum = n })
   const settings = await getSettings()
   return Math.max(maxNum, settings.nextProjectStart - 1) + 1
 }
-
 async function createProject(payload) {
   await ensureProjectHeaders()
   const num = await nextProjectNumber()
@@ -163,7 +166,6 @@ async function createProject(payload) {
   await appendRow('Projects!A:AJ', row)
   return { projectNumber: num }
 }
-
 async function updateProject(payload) {
   const num = parseInt(payload.ProjectNumber, 10)
   if (!num) throw new Error('Missing ProjectNumber')
@@ -181,7 +183,6 @@ async function updateProject(payload) {
     const ci = colIndex[k]
     if (ci !== undefined) row[ci] = payload[k]
   })
-  // UpdatedAtISO
   const updatedIdx = colIndex['UpdatedAtISO']
   if (updatedIdx !== undefined) row[updatedIdx] = nowISO()
   const range = `Projects!A${idx+1}:AJ${idx+1}`
@@ -189,23 +190,20 @@ async function updateProject(payload) {
   return { ok: true }
 }
 
-// ---- Tasks (minimal) ----
+// ─── Tasks ─────────────────────────────────────────────────────────────────────
 const TASK_HEADERS = [
   "TaskID","ProjectNumber","TaskName","AssigneeEmail","Role","Priority","Status","Milestone",
   "StartDate","DueDate","EstimatedHours","ActualHours","PercentComplete",
   "DependsOnTaskIDs","ExternalDependency","Billable","HourlyRateOverride","CostOverride",
   "Location","Notes","CreatedAtISO","UpdatedAtISO","Tags"
 ]
-
 async function ensureTaskHeaders() {
   const rows = await readRange('Tasks!1:1')
   if ((rows[0] || []).length === 0) {
     await writeRange('Tasks!1:1', [TASK_HEADERS])
   }
 }
-
 function newId() { return Math.random().toString(36).slice(2) + Date.now().toString(36) }
-
 async function listTasks(projectNumber) {
   await ensureTaskHeaders()
   const rows = await readRange('Tasks!A2:W')
@@ -220,7 +218,6 @@ async function listTasks(projectNumber) {
     }))
     .filter(t => !projectNumber || String(t.ProjectNumber) === String(projectNumber))
 }
-
 async function createTask(payload) {
   await ensureTaskHeaders()
   const now = nowISO()
@@ -254,7 +251,7 @@ async function createTask(payload) {
   return { taskId }
 }
 
-// ---- Users & Meta for Time tracker ----
+// ─── Users / Meta / Time ───────────────────────────────────────────────────────
 async function getUsers() {
   const rows = await readRange('Users!A:C')
   const out = {}
@@ -263,7 +260,6 @@ async function getUsers() {
   })
   return out
 }
-
 async function ensureUser(email, name) {
   const users = await getUsers()
   const key = email.toLowerCase()
@@ -275,12 +271,10 @@ async function ensureUser(email, name) {
   }
   return users[key]
 }
-
 async function getProjectsForMeta() {
   const rows = await readRange('Projects!A:B')
   return rows.slice(1).filter(r => r[0] && r[1]).map(r => ({ number: parseInt(r[0],10), name: r[1] }))
 }
-
 async function getTasksMap() {
   const rows = await readRange('Tasks!A:C')
   const map = {}
@@ -292,8 +286,6 @@ async function getTasksMap() {
   })
   return map
 }
-
-// ---- Time tracking ----
 function mondayOf(date = new Date()) {
   const d = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()))
   const day = d.getUTCDay()
@@ -302,13 +294,11 @@ function mondayOf(date = new Date()) {
   return d.toISOString().slice(0, 10)
 }
 function ymd(date = new Date()) { return new Date(date).toISOString().slice(0, 10) }
-
 async function getTimeLog() {
   const rows = await readRange('TimeLog!A:L')
   const headers = ['ID','Email','Name','ProjectNumber','Project','Task','ClockInISO','ClockOutISO','DurationMinutes','WeekStart','Day','Billable']
   return rows.slice(1).map(r => Object.fromEntries(headers.map((h,i)=>[h, r[i] || ''])))
 }
-
 async function findActiveRowIndex(email) {
   const rows = await readRange('TimeLog!A:L')
   for (let i = rows.length - 1; i >= 1; i--) {
@@ -318,13 +308,11 @@ async function findActiveRowIndex(email) {
   }
   return null
 }
-
 async function handleMeta(email, name) {
   const user = await ensureUser(email, name)
   const [projects, tasksMap] = await Promise.all([getProjectsForMeta(), getTasksMap()])
   return { user, projects, tasksMap }
 }
-
 async function handleStatus(email) {
   const rows = await readRange('TimeLog!A:L')
   for (let i = rows.length - 1; i >= 1; i--) {
@@ -335,7 +323,7 @@ async function handleStatus(email) {
   }
   return { active: false }
 }
-
+function newId() { return Math.random().toString(36).slice(2) + Date.now().toString(36) }
 async function handleClockIn(email, name, body) {
   const status = await handleStatus(email)
   if (status.active) return { ok: false, error: 'Already clocked in.' }
@@ -343,13 +331,12 @@ async function handleClockIn(email, name, body) {
   const week = mondayOf(now)
   await ensureUser(email, name)
   const projectNumber = body.projectNumber || body.ProjectNumber || ''
-  const project = body.project || '' // optional nice-to-have name
+  const project = body.project || ''
   const task = body.task || ''
   const row = [newId(), email, name || '', projectNumber, project, task, now.toISOString(), '', '', week, ymd(now), '']
   await appendRow('TimeLog!A:L', row)
   return { ok: true }
 }
-
 async function handleClockOut(email) {
   const idx = await findActiveRowIndex(email)
   if (!idx) return { ok: false, error: 'No active session.' }
@@ -364,7 +351,6 @@ async function handleClockOut(email) {
   await writeRange(range, [row])
   return { ok: true, minutes }
 }
-
 async function handleEntries(email, sinceWeekStart = mondayOf(new Date())) {
   const all = await getTimeLog()
   const mine = all.filter(r => r.Email.toLowerCase() === email.toLowerCase() && r.WeekStart === sinceWeekStart)
@@ -372,14 +358,14 @@ async function handleEntries(email, sinceWeekStart = mondayOf(new Date())) {
   return { entries: mine, totalMinutes: total }
 }
 
-// ---- Handler ----
+// ─── Handler ───────────────────────────────────────────────────────────────────
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return cors({ ok: true })
 
   const action = (event.queryStringParameters?.action || '').toLowerCase()
 
   // auth
-  let user = await verifyAndGetEmail(event)
+  const user = await verifyAndGetEmail(event)
   if (!user && action !== 'public-meta') {
     return cors({ ok: false, error: 'Unauthorized: missing or invalid Google ID token.' }, 401)
   }
@@ -400,6 +386,11 @@ exports.handler = async (event) => {
       if (action === 'list-tasks') {
         const proj = event.queryStringParameters?.projectNumber
         return cors({ ok: true, tasks: await listTasks(proj) })
+      }
+      // optional debug: check OAuth can mint an access token
+      if (action === 'oauth-ping') {
+        const token = await oauth2.getAccessToken()
+        return cors({ ok: true, hasToken: !!token?.token })
       }
     }
 
