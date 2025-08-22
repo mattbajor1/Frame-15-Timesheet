@@ -1,6 +1,6 @@
 // src/ProjectsAdmin.jsx
 import { useEffect, useMemo, useState } from 'react'
-import Select from './components/Select.js'
+import Select from './components/Select.jsx'
 
 const API_BASE = '/.netlify/functions/time-api'
 
