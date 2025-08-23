@@ -1,10 +1,13 @@
-// netlify/functions/time-api.js — proxy to Apps Script
+// netlify/functions/time-api.js — proxy to Apps Script with robust parsing
 const { OAuth2Client } = require('google-auth-library')
 
-// Env
-const WEB_APP_URL = process.env.APPSCRIPT_URL // the Web app URL ending with /exec
-const API_KEY = process.env.APPSCRIPT_API_KEY // same as Script Property API_KEY
+const WEB_APP_URL = process.env.APPSCRIPT_URL
+const API_KEY = process.env.APPSCRIPT_API_KEY
 const OAUTH_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
+const REQUIRE_GOOGLE_LOGIN = (process.env.REQUIRE_GOOGLE_LOGIN ?? 'true') !== 'false'
+
+// Allow these without login (good for debugging)
+const PUBLIC_ACTIONS = new Set(['ping'])
 
 const ALLOWED_EMAILS = (process.env.ALLOWED_EMAILS || '')
   .split(',').map(s=>s.trim().toLowerCase()).filter(Boolean)
@@ -47,43 +50,68 @@ async function verifyAndGetEmail(event) {
   return null
 }
 
+async function forwardGet(params) {
+  const sp = new URLSearchParams(params || {})
+  sp.set('apiKey', API_KEY)
+  const url = `${WEB_APP_URL}?${sp.toString()}`
+  const r = await fetch(url, { method: 'GET' })
+  const ct = (r.headers.get('content-type') || '').toLowerCase()
+  if (ct.includes('application/json')) {
+    const data = await r.json()
+    return { code: r.status, data }
+  } else {
+    const text = await r.text()
+    return {
+      code: 502,
+      data: { ok: false, error: 'Upstream returned non-JSON', upstreamStatus: r.status, contentType: ct, snippet: text.slice(0, 500) }
+    }
+  }
+}
+
+async function forwardPost(action, body) {
+  const sp = new URLSearchParams({ action })
+  const url = `${WEB_APP_URL}?${sp.toString()}`
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...(body || {}), apiKey: API_KEY }),
+  })
+  const ct = (r.headers.get('content-type') || '').toLowerCase()
+  if (ct.includes('application/json')) {
+    const data = await r.json()
+    return { code: r.status, data }
+  } else {
+    const text = await r.text()
+    return {
+      code: 502,
+      data: { ok: false, error: 'Upstream returned non-JSON', upstreamStatus: r.status, contentType: ct, snippet: text.slice(0, 500) }
+    }
+  }
+}
+
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return cors({ ok: true })
   if (!WEB_APP_URL || !API_KEY) return cors({ ok:false, error:'Server not configured' }, 500)
 
   const action = (event.queryStringParameters?.action || '').toLowerCase()
 
-  // verify Google Sign-In from the browser
-  const user = await verifyAndGetEmail(event)
-  if (!user && action !== 'public-meta') return cors({ ok:false, error:'Unauthorized' }, 401)
-  if (user && !isAllowed(user.email)) return cors({ ok:false, error:'Forbidden' }, 403)
+  // auth (skip for public actions)
+  let user = null
+  if (!PUBLIC_ACTIONS.has(action) && REQUIRE_GOOGLE_LOGIN) {
+    user = await verifyAndGetEmail(event)
+    if (!user) return cors({ ok:false, error:'Unauthorized' }, 401)
+    if (!isAllowed(user.email)) return cors({ ok:false, error:'Forbidden' }, 403)
+  }
 
   try {
-    // forward to Apps Script
     if (event.httpMethod === 'GET') {
-      // forward query params and apiKey
-      const sp = new URLSearchParams(event.queryStringParameters || {})
-      sp.set('apiKey', API_KEY)
-      const url = `${WEB_APP_URL}?${sp.toString()}`
-      const r = await fetch(url, { method:'GET' })
-      const data = await r.json()
-      const code = r.ok ? 200 : (data && data.error ? 500 : r.status)
+      const { code, data } = await forwardGet(event.queryStringParameters || {})
       return cors(data, code)
     }
 
     if (event.httpMethod === 'POST') {
       const body = event.body ? JSON.parse(event.body) : {}
-      // inject apiKey (not exposed to browser)
-      body.apiKey = API_KEY
-      const sp = new URLSearchParams({ action })
-      const url = `${WEB_APP_URL}?${sp.toString()}`
-      const r = await fetch(url, {
-        method:'POST',
-        headers: { 'Content-Type':'application/json' },
-        body: JSON.stringify(body),
-      })
-      const data = await r.json()
-      const code = r.ok ? 200 : (data && data.error ? 500 : r.status)
+      const { code, data } = await forwardPost(action, body)
       return cors(data, code)
     }
 
