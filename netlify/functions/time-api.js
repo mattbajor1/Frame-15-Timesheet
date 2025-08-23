@@ -1,4 +1,4 @@
-// netlify/functions/time-api.js — proxy to Apps Script with robust parsing
+// netlify/functions/time-api.js — proxy to Apps Script, forwards user info
 const { OAuth2Client } = require('google-auth-library')
 
 const WEB_APP_URL = process.env.APPSCRIPT_URL
@@ -6,7 +6,7 @@ const API_KEY = process.env.APPSCRIPT_API_KEY
 const OAUTH_CLIENT_ID = process.env.GOOGLE_CLIENT_ID
 const REQUIRE_GOOGLE_LOGIN = (process.env.REQUIRE_GOOGLE_LOGIN ?? 'true') !== 'false'
 
-// Allow these without login (good for debugging)
+// Allow anonymous health check for debugging
 const PUBLIC_ACTIONS = new Set(['ping'])
 
 const ALLOWED_EMAILS = (process.env.ALLOWED_EMAILS || '')
@@ -35,7 +35,7 @@ const cors = (body, statusCode = 200, headers = {}) => ({
   body: JSON.stringify(body),
 })
 
-async function verifyAndGetEmail(event) {
+async function getUser(event) {
   const auth = event.headers?.authorization || event.headers?.Authorization
   if (auth && auth.startsWith('Bearer ')) {
     const token = auth.split(' ')[1]
@@ -50,42 +50,35 @@ async function verifyAndGetEmail(event) {
   return null
 }
 
-async function forwardGet(params) {
+async function forwardGet(params, user) {
   const sp = new URLSearchParams(params || {})
   sp.set('apiKey', API_KEY)
+  if (user) { sp.set('email', user.email); sp.set('name', user.name || '') }
   const url = `${WEB_APP_URL}?${sp.toString()}`
   const r = await fetch(url, { method: 'GET' })
   const ct = (r.headers.get('content-type') || '').toLowerCase()
   if (ct.includes('application/json')) {
-    const data = await r.json()
-    return { code: r.status, data }
+    const data = await r.json(); return { code: r.status, data }
   } else {
     const text = await r.text()
-    return {
-      code: 502,
-      data: { ok: false, error: 'Upstream returned non-JSON', upstreamStatus: r.status, contentType: ct, snippet: text.slice(0, 500) }
-    }
+    return { code: 502, data: { ok:false, error:'Upstream returned non-JSON', upstreamStatus:r.status, contentType:ct, snippet:text.slice(0, 500) } }
   }
 }
 
-async function forwardPost(action, body) {
+async function forwardPost(action, body, user) {
   const sp = new URLSearchParams({ action })
   const url = `${WEB_APP_URL}?${sp.toString()}`
   const r = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ ...(body || {}), apiKey: API_KEY }),
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body: JSON.stringify({ ...(body || {}), apiKey: API_KEY, email: user?.email, name: user?.name })
   })
   const ct = (r.headers.get('content-type') || '').toLowerCase()
   if (ct.includes('application/json')) {
-    const data = await r.json()
-    return { code: r.status, data }
+    const data = await r.json(); return { code: r.status, data }
   } else {
     const text = await r.text()
-    return {
-      code: 502,
-      data: { ok: false, error: 'Upstream returned non-JSON', upstreamStatus: r.status, contentType: ct, snippet: text.slice(0, 500) }
-    }
+    return { code: 502, data: { ok:false, error:'Upstream returned non-JSON', upstreamStatus:r.status, contentType:ct, snippet:text.slice(0, 500) } }
   }
 }
 
@@ -95,26 +88,23 @@ exports.handler = async (event) => {
 
   const action = (event.queryStringParameters?.action || '').toLowerCase()
 
-  // auth (skip for public actions)
   let user = null
   if (!PUBLIC_ACTIONS.has(action) && REQUIRE_GOOGLE_LOGIN) {
-    user = await verifyAndGetEmail(event)
+    user = await getUser(event)
     if (!user) return cors({ ok:false, error:'Unauthorized' }, 401)
     if (!isAllowed(user.email)) return cors({ ok:false, error:'Forbidden' }, 403)
   }
 
   try {
     if (event.httpMethod === 'GET') {
-      const { code, data } = await forwardGet(event.queryStringParameters || {})
+      const { code, data } = await forwardGet(event.queryStringParameters || {}, user)
       return cors(data, code)
     }
-
     if (event.httpMethod === 'POST') {
       const body = event.body ? JSON.parse(event.body) : {}
-      const { code, data } = await forwardPost(action, body)
+      const { code, data } = await forwardPost(action, body, user)
       return cors(data, code)
     }
-
     return cors({ ok:false, error:'Not found' }, 404)
   } catch (e) {
     console.error(e)
