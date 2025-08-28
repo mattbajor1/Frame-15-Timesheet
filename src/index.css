@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+
 /* Theme tokens: black/white with blue/red accents */
 :root {
   --bg: #ffffff;
