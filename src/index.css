@@ -1,0 +1,5 @@
+@import "tailwindcss";
+
+/* optional custom styles */
+:root { color-scheme: light; }
+body { margin: 0; }

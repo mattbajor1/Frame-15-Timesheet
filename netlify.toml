@@ -1,0 +1,13 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Optional: pick Node 20 for consistency
+[build.environment]
+  NODE_VERSION = "20"
+
+# Single-page app fallback so reloads don't 404
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
