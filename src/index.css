@@ -1,5 +1,52 @@
 @import "tailwindcss";
 
-/* optional custom styles */
-:root { color-scheme: light; }
-body { margin: 0; }
+/* Theme tokens: black/white with blue/red accents */
+:root {
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --text: #0a0a0a;
+  --muted: #6b7280;      /* neutral-500 */
+  --line: #e5e7eb;       /* neutral-200 */
+  --blue: #2563eb;       /* blue-600 */
+  --blue-700: #1d4ed8;
+  --red: #ef4444;        /* red-500 */
+  --red-600: #dc2626;
+}
+
+html, body, #root { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); }
+
+/* Building blocks */
+.f15-card { @apply rounded-2xl shadow-lg border p-5; border-color: var(--line); background: var(--surface); }
+.f15-btn  { @apply inline-flex items-center justify-center rounded-xl px-4 py-2 transition border; border-color: var(--line); }
+.f15-btn:hover { @apply bg-neutral-50; }
+.f15-btn--primary { background: var(--text); color: white; border-color: #0a0a0a; }
+.f15-btn--primary:hover { background: #111111; }
+.f15-btn--blue { background: var(--blue); color: white; border-color: var(--blue); }
+.f15-btn--blue:hover { background: var(--blue-700); border-color: var(--blue-700); }
+.f15-btn--danger { color: var(--red-600); border-color: var(--red); }
+.f15-badge { @apply text-xs px-2 py-1 rounded-full border; border-color: var(--line); }
+
+/* Inputs */
+.f15-input, .f15-select {
+  @apply w-full px-3 py-2 rounded-xl border bg-white outline-none transition;
+  border-color: var(--line);
+}
+.f15-input:focus, .f15-select:focus { @apply ring-2; box-shadow: none; }
+.f15-select { appearance: none; background-image: url('data:image/svg+xml;utf8,<svg fill="none" stroke="%236b7280" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 9l6 6 6-6"/></svg>'); background-repeat: no-repeat; background-position: right .7rem center; background-size: 1rem; padding-right: 2rem; }
+
+/* Big action button */
+.f15-cta {
+  @apply rounded-2xl px-8 py-5 text-lg font-semibold transition border;
+  border-color: #000; background: #000; color: #fff;
+}
+.f15-cta:hover { background: #111; }
+
+/* Grid helpers */
+.f15-grid { @apply grid gap-6; }
+@media (min-width: 768px) { .f15-grid-2 { grid-template-columns: 1fr 1fr; } }
+@media (min-width: 1024px) { .f15-grid-3 { grid-template-columns: 1fr 1fr 1fr; } }
+
+/* Section headings */
+.f15-h1 { @apply text-2xl font-bold tracking-tight; }
+.f15-h2 { @apply text-xl font-semibold; }
