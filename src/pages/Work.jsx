@@ -5,7 +5,7 @@ function useLocal(key, initial) {
   const [v, setV] = useState(() => {
     try { const x = localStorage.getItem(key); return x ? JSON.parse(x) : initial; } catch { return initial; }
   });
-  useEffect(() => { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* empty */ } }, [key, v]);
+  useEffect(() => { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* ignore localStorage errors */ } }, [key, v]);
   return [v, setV];
 }
 
@@ -28,13 +28,11 @@ export default function Work({ email }) {
 
   const [sel, setSel] = useLocal("f15:last", { projectNumber: "", taskName: "", billable: true });
 
-  useEffect(() => { (async () => {
-    const r = await api.lists();
-    setLists(r);
-  })(); }, []);
+  useEffect(() => { (async () => { const r = await api.lists(); setLists(r); })(); }, []);
 
-  const taskOptions = useMemo(() =>
-    lists.tasks.filter(t => !sel.projectNumber || t.projectNumber === sel.projectNumber), [lists.tasks, sel.projectNumber]
+  const taskOptions = useMemo(
+    () => lists.tasks.filter(t => !sel.projectNumber || t.projectNumber === sel.projectNumber),
+    [lists.tasks, sel.projectNumber]
   );
 
   const refresh = useCallback(async () => {
@@ -64,9 +62,7 @@ export default function Work({ email }) {
       const r = await api.lists();
       setLists(r);
       alert("Task added.");
-    } catch (e) {
-      alert(String(e.message || e));
-    }
+    } catch (e) { alert(String(e.message || e)); }
   }
 
   return (
@@ -95,12 +91,18 @@ export default function Work({ email }) {
 
           <div>
             <label className="text-sm font-medium">Task</label>
-            <select className="f15-select mt-1" value={sel.taskName}
+            <input
+              className="f15-input mt-1 mb-1"
+              placeholder="Type new task name or pick below"
+              value={sel.taskName}
+              onChange={(e) => setSel(s => ({ ...s, taskName: e.target.value }))}
+            />
+            <select className="f15-select" value={sel.taskName}
               onChange={(e) => setSel(s => ({ ...s, taskName: e.target.value }))}>
-              <option value="">— Select task —</option>
+              <option value="">— Select existing task —</option>
               {taskOptions.map(t => <option key={t.id} value={t.name}>{t.name} ({t.id})</option>)}
             </select>
-            <div className="text-xs text-neutral-500 mt-1">Type a new task name and click “Quick add” to create it.</div>
+            <div className="text-xs text-neutral-500 mt-1">Type a new task name then click “Quick add” to create it.</div>
           </div>
 
           <label className="inline-flex items-center gap-2">

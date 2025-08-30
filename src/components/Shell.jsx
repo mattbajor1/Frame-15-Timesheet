@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { api } from "../lib/api";
 
 const GREETINGS = [
@@ -9,21 +9,62 @@ const GREETINGS = [
   "Frame by frame, hour by hour.",
 ];
 const ALLOWED_DOMAIN = "frame15.com";
+const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+function parseJwt(token) {
+  try {
+    const base64Url = token.split(".")[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    return JSON.parse(jsonPayload);
+  } catch {
+    return {};
+  }
+}
 
 export default function Shell({ page, setPage, onEmail, children }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  const [idToken, setIdToken] = useState("");
   const [showLogin, setShowLogin] = useState(false);
   const [greeting, setGreeting] = useState("");
   const [error, setError] = useState("");
   const [who, setWho] = useState(null);
 
+  // Stable callback for Google credential response
+  const handleCredential = useCallback((resp) => {
+    const token = resp?.credential;
+    if (!token) { setError("No credential from Google."); return; }
+    const payload = parseJwt(token);
+    const em = (payload.email || "").toLowerCase();
+    if (!em.endsWith("@"+ALLOWED_DOMAIN)) {
+      setError(`Use your @${ALLOWED_DOMAIN} account`);
+      return;
+    }
+    const profile = { email: em, name: payload.name || em, idToken: token };
+    localStorage.setItem("f15:user", JSON.stringify(profile));
+    setName(profile.name);
+    setEmail(profile.email);
+    setIdToken(profile.idToken);
+    setShowLogin(false);
+    setError("");
+    window.dispatchEvent(new CustomEvent("f15:userchange", { detail: profile }));
+  }, []);
+
+  // Load stored session + greeting
   useEffect(() => {
     const stored = localStorage.getItem("f15:user");
     if (stored) {
       const u = JSON.parse(stored);
       setName(u.name || "");
       setEmail(u.email || "");
+      setIdToken(u.idToken || "");
+      setShowLogin(false);
     } else {
       setShowLogin(true);
     }
@@ -34,15 +75,18 @@ export default function Shell({ page, setPage, onEmail, children }) {
     localStorage.setItem("f15:greet", next);
   }, []);
 
+  // Verify session with backend
   useEffect(() => {
     (async () => {
-      if (!email) return;
+      if (!idToken) return;
       try {
         const w = await api.whoami();
         if (w && w.ok !== false) {
           setWho(w);
           setError("");
-          onEmail?.(email);
+          onEmail?.(w.email || email);
+        } else {
+          throw new Error(w?.error || "Unknown");
         }
       } catch (e) {
         setError(`Access error: ${String(e.message || e)}`);
@@ -50,29 +94,55 @@ export default function Shell({ page, setPage, onEmail, children }) {
         setShowLogin(true);
       }
     })();
-  }, [email, onEmail]);
+  }, [idToken, email, onEmail]);
 
-  function saveUser(e) {
-    e.preventDefault();
-    const f = new FormData(e.currentTarget);
-    const display = String(f.get("display") || "").trim();
-    const em = String(f.get("email") || "").trim();
-    if (!em || !em.toLowerCase().endsWith("@" + ALLOWED_DOMAIN)) {
-      setError(`Use your @${ALLOWED_DOMAIN} email`);
-      return;
-    }
-    const payload = { email: em, name: display || em };
-    localStorage.setItem("f15:user", JSON.stringify(payload));
-    setName(payload.name);
-    setEmail(payload.email);
-    setShowLogin(false);
-    setError("");
-    window.dispatchEvent(new CustomEvent("f15:userchange", { detail: payload }));
-  }
+  // Load Google Identity Services and render the button
+  useEffect(() => {
+    if (!showLogin) return;
+
+    // avoid duplicate script
+    const existing = document.getElementById("gis-sdk");
+    if (existing) existing.remove();
+
+    const script = document.createElement("script");
+    script.id = "gis-sdk";
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+
+    script.onload = () => {
+      if (!window.google || !GOOGLE_CLIENT_ID) {
+        setError("Google sign-in not configured.");
+        return;
+      }
+      window.google.accounts.id.initialize({
+        client_id: GOOGLE_CLIENT_ID,
+        callback: handleCredential,
+        auto_select: false,
+        ux_mode: "popup",
+        cancel_on_tap_outside: true,
+      });
+      const el = document.getElementById("gsi-btn");
+      if (el) {
+        window.google.accounts.id.renderButton(el, {
+          theme: "outline",
+          size: "large",
+          type: "standard",
+          shape: "pill",
+          logo_alignment: "left",
+        });
+      }
+    };
+
+    document.head.appendChild(script);
+    return () => {
+      try { document.head.removeChild(script); } catch { /* ignore error */ }
+    };
+  }, [showLogin, handleCredential]);
 
   function logout() {
     localStorage.removeItem("f15:user");
-    setWho(null); setEmail(""); setName("");
+    setWho(null); setEmail(""); setName(""); setIdToken("");
     setShowLogin(true);
   }
 
@@ -108,9 +178,7 @@ export default function Shell({ page, setPage, onEmail, children }) {
             <div className="text-sm text-neutral-600">
               {greeting} {name && <span className="font-medium">— {name}</span>}
             </div>
-            {email && (
-              <button className="f15-btn" onClick={logout} title={`Signed in as ${email}`}>Logout</button>
-            )}
+            {email && <button className="f15-btn" onClick={logout} title={`Signed in as ${email}`}>Logout</button>}
           </div>
         </div>
       </div>
@@ -127,17 +195,12 @@ export default function Shell({ page, setPage, onEmail, children }) {
       {/* Login gate */}
       {showLogin && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center p-4">
-          <form onSubmit={saveUser} className="f15-card w-full max-w-md space-y-3">
-            <h2 className="f15-h2">Welcome to Frame 15 Internal</h2>
-            <p className="text-sm text-neutral-600">Sign in with your <b>@{ALLOWED_DOMAIN}</b> email.</p>
-            <input name="display" placeholder="Display name (optional)" className="f15-input" />
-            <input name="email" type="email" required placeholder={"you@" + ALLOWED_DOMAIN} className="f15-input" />
+          <div className="f15-card w-full max-w-md space-y-4">
+            <h2 className="f15-h2">Sign in</h2>
+            <p className="text-sm text-neutral-600">Use your <b>@{ALLOWED_DOMAIN}</b> Google account.</p>
             {error && <div className="text-rose-600 text-sm">{error}</div>}
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={() => setShowLogin(false)} className="f15-btn">View only</button>
-              <button className="f15-btn f15-btn--primary">Enter</button>
-            </div>
-          </form>
+            <div id="gsi-btn" className="flex justify-center"></div>
+          </div>
         </div>
       )}
     </div>

@@ -1,6 +1,5 @@
 @import "tailwindcss";
 
-
 /* Theme tokens: black/white with blue/red accents */
 :root {
   --bg: #ffffff;
@@ -16,6 +15,10 @@
 
 html, body, #root { height: 100%; }
 body { margin: 0; background: var(--bg); color: var(--text); }
+
+.apply-sanity {
+  @apply border rounded-xl px-4 py-2 bg-black text-white;
+}
 
 /* Building blocks */
 .f15-card { @apply rounded-2xl shadow-lg border p-5; border-color: var(--line); background: var(--surface); }
@@ -34,7 +37,14 @@ body { margin: 0; background: var(--bg); color: var(--text); }
   border-color: var(--line);
 }
 .f15-input:focus, .f15-select:focus { @apply ring-2; box-shadow: none; }
-.f15-select { appearance: none; background-image: url('data:image/svg+xml;utf8,<svg fill="none" stroke="%236b7280" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 9l6 6 6-6"/></svg>'); background-repeat: no-repeat; background-position: right .7rem center; background-size: 1rem; padding-right: 2rem; }
+.f15-select {
+  appearance: none;
+  background-image: url('data:image/svg+xml;utf8,<svg fill="none" stroke="%236b7280" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 9l6 6 6-6"/></svg>');
+  background-repeat: no-repeat;
+  background-position: right .7rem center;
+  background-size: 1rem;
+  padding-right: 2rem;
+}
 
 /* Big action button */
 .f15-cta {
@@ -51,3 +61,4 @@ body { margin: 0; background: var(--bg); color: var(--text); }
 /* Section headings */
 .f15-h1 { @apply text-2xl font-bold tracking-tight; }
 .f15-h2 { @apply text-xl font-semibold; }
+

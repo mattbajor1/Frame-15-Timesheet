@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
 
-const PROGRESS = [0, 25, 50, 75, 100];
 const STATUSES = ["Planning","Active","On Hold","Done"];
 
 export default function Projects() {
@@ -37,7 +36,7 @@ export default function Projects() {
     alert(`Project created: ${r.number}`);
   }
 
-  // compute simple avg progress per project from tasks
+  // average progress from tasks (if you populate progress later)
   const progressByProject = useMemo(() => {
     const map = new Map(); // proj -> [sum, count]
     tasks.forEach(t => {
