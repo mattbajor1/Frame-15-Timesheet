@@ -1,129 +1,77 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { api } from "../lib/api";
 
-function useLocal(key, initial) {
-  const [v, setV] = useState(() => {
-    try { const x = localStorage.getItem(key); return x ? JSON.parse(x) : initial; } catch { return initial; }
-  });
-  useEffect(() => { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* empty */ } }, [key, v]);
-  return [v, setV];
-}
-
-function Elapsed({ startISO }) {
-  const [now, setNow] = useState(Date.now());
-  useEffect(() => { const id = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(id); }, []);
-  if (!startISO) return <span className="font-mono">00:00:00</span>;
-  const diff = Math.max(0, Math.floor((now - new Date(startISO).getTime()) / 1000));
-  const h = String(Math.floor(diff / 3600)).padStart(2, "0");
-  const m = String(Math.floor((diff % 3600) / 60)).padStart(2, "0");
-  const s = String(diff % 60).padStart(2, "0");
-  return <span className="font-mono text-3xl">{h}:{m}:{s}</span>;
-}
-
 export default function Work({ email }) {
-  const [lists, setLists] = useState({ projects: [], tasks: [] });
   const [active, setActive] = useState(null);
-  const [weekHours, setWeekHours] = useState(null);
-  const [loading, setLoading] = useState(false);
-
-  const [sel, setSel] = useLocal("f15:last", { projectNumber: "", taskName: "", billable: true });
-
-  // load only after login
-  useEffect(() => {
-    if (!email) return;
-    (async () => { const r = await api.lists(); setLists(r); })();
-  }, [email]);
-
-  const taskOptions = useMemo(
-    () => lists.tasks.filter(t => !sel.projectNumber || t.projectNumber === sel.projectNumber),
-    [lists.tasks, sel.projectNumber]
-  );
+  const [today, setToday] = useState(0);
+  const [week, setWeek] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState("");
 
   const refresh = useCallback(async () => {
-    if (!email) return;
-    const [sum, act] = await Promise.all([api.summary(email), api.activeTimer(email)]);
-    setWeekHours(sum.totalHours ?? null);
-    setActive(act.active ?? null);
+    setErr("");
+    try {
+      const s = await api.shiftSummary(email);
+      setActive(s.active);
+      setToday(s.todayHours);
+      setWeek(s.weekHours);
+    } catch (e) {
+      setErr(String(e?.message || e));
+    }
   }, [email]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => { if (email) refresh(); }, [email, refresh]);
 
-  async function handlePunch() {
-    if (!email) { alert("Enter your email in the top bar."); return; }
-    setLoading(true);
-    try {
-      const r = await api.punch({ email, projectNumber: sel.projectNumber, taskName: sel.taskName, billable: sel.billable });
-      if (r.mode === "clockin") setActive({ inISO: r.inISO, projectNumber: sel.projectNumber, taskName: sel.taskName });
-      else setActive(null);
-      await refresh();
-    } finally { setLoading(false); }
+  async function start() {
+    setBusy(true); setErr("");
+    try { await api.startShift(); await refresh(); }
+    catch (e) { setErr(String(e?.message || e)); }
+    finally { setBusy(false); }
   }
-
-  async function quickAddTask() {
-    if (!sel.projectNumber || !sel.taskName) return;
-    try {
-      await api.addTask({ projectNumber: sel.projectNumber, taskName: sel.taskName, progress: 0, status: "Backlog" });
-      const r = await api.lists();
-      setLists(r);
-      alert("Task added.");
-    } catch (e) { alert(String(e.message || e)); }
+  async function stop() {
+    setBusy(true); setErr("");
+    try { await api.stopShift(); await refresh(); }
+    catch (e) { setErr(String(e?.message || e)); }
+    finally { setBusy(false); }
   }
 
   return (
-    <div className="space-y-6">
-      <div className="f15-card flex items-center justify-between">
-        <div>
-          <div className="f15-h1">Work</div>
-          <div className="text-sm text-neutral-600">Week: {weekHours ?? "--"}h</div>
+    <div className="space-y-4">
+      <div className="f15-card">
+        <div className="f15-h2 mb-2">Your shift</div>
+        {active ? (
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-sm text-neutral-400">Clocked in</div>
+              <div className="text-lg">{new Date(active.inISO).toLocaleTimeString()}</div>
+            </div>
+            <button className="f15-btn f15-btn--danger" onClick={stop} disabled={busy}>Clock out</button>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-neutral-400">Not on the clock</div>
+            <button className="f15-btn f15-btn--blue" onClick={start} disabled={busy}>Clock in</button>
+          </div>
+        )}
+        {err && <div className="text-red-500 text-sm mt-3">{err}</div>}
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="f15-card">
+          <div className="text-sm text-neutral-400">Today</div>
+          <div className="text-3xl font-bold">{today.toFixed(2)} h</div>
         </div>
-        <div className="text-right">
-          <Elapsed startISO={active?.inISO} />
-          <div className="text-sm text-neutral-600">{active ? "Active" : "Idle"}</div>
+        <div className="f15-card">
+          <div className="text-sm text-neutral-400">This week</div>
+          <div className="text-3xl font-bold">{week.toFixed(2)} h</div>
         </div>
       </div>
 
-      <div className="f15-card f15-grid f15-grid-2">
-        <div className="grid gap-3">
-          <div>
-            <label className="text-sm font-medium">Project</label>
-            <select className="f15-select mt-1" value={sel.projectNumber}
-              onChange={(e) => setSel(s => ({ ...s, projectNumber: e.target.value }))}>
-              <option value="">— Select project —</option>
-              {lists.projects.map(p => <option key={p.number} value={p.number}>{p.number} — {p.name}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label className="text-sm font-medium">Task</label>
-            <input
-              className="f15-input mt-1 mb-1"
-              placeholder="Type new task name or pick below"
-              value={sel.taskName}
-              onChange={(e) => setSel(s => ({ ...s, taskName: e.target.value }))}
-            />
-            <select className="f15-select" value={sel.taskName}
-              onChange={(e) => setSel(s => ({ ...s, taskName: e.target.value }))}>
-              <option value="">— Select existing task —</option>
-              {taskOptions.map(t => <option key={t.id} value={t.name}>{t.name} ({t.id})</option>)}
-            </select>
-            <div className="text-xs text-neutral-500 mt-1">Type a new task name then click “Quick add”.</div>
-          </div>
-
-          <label className="inline-flex items-center gap-2">
-            <input type="checkbox" checked={sel.billable} onChange={(e) => setSel(s => ({ ...s, billable: e.target.checked }))} />
-            Billable
-          </label>
-        </div>
-
-        <div className="flex flex-col justify-center items-center gap-3">
-          <button className="f15-cta" onClick={handlePunch} disabled={loading}>
-            {active ? "Stop" : "Start"}
-          </button>
-          <div className="flex gap-2">
-            <button className="f15-btn f15-btn--blue" onClick={quickAddTask} disabled={!sel.projectNumber || !sel.taskName}>Quick add task</button>
-            <button className="f15-btn f15-btn--danger" onClick={() => setSel({ projectNumber: "", taskName: "", billable: true })}>Clear</button>
-          </div>
-        </div>
+      <div className="f15-card">
+        <div className="f15-h2 mb-2">How to track tasks</div>
+        <p className="text-sm text-neutral-400">
+          Clock in/out tracks your workday. Time on individual tasks is computed automatically when you work on them (via task sessions) or by logging against tasks (coming next). For now, task totals are aggregated from the Time Log.
+        </p>
       </div>
     </div>
   );
