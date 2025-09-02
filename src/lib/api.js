@@ -11,6 +11,15 @@ function withKeyURL(extraParams = {}) {
   return u.toString();
 }
 
+// Encode form body so POST stays a "simple request" (no CORS preflight)
+function encForm(obj) {
+  const sp = new URLSearchParams();
+  for (const [k, v] of Object.entries(obj)) {
+    sp.append(k, typeof v === "object" ? JSON.stringify(v) : String(v));
+  }
+  return sp.toString();
+}
+
 async function GET(action, params = {}) {
   const url = withKeyURL({ ...params, action });
   const res = await fetch(url, { method: "GET" });
@@ -22,11 +31,11 @@ async function GET(action, params = {}) {
 }
 
 async function POST(action, body = {}) {
-  const url = withKeyURL(); // put key in URL too
+  const url = withKeyURL(); // key also in URL
   const res = await fetch(url, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, key: KEY, ...body }), // and key in body
+    headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+    body: encForm({ action, key: KEY, ...body }), // and in body
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || data.ok === false) {
@@ -36,7 +45,7 @@ async function POST(action, body = {}) {
 }
 
 export const api = {
-  // auth / identity
+  // auth
   whoami: (email) => GET("whoami", { email }),
 
   // lists & metadata
