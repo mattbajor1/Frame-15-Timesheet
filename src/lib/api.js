@@ -1,6 +1,6 @@
 // src/lib/api.js
 const BASE = import.meta.env.VITE_API_URL;  // e.g. https://script.google.com/macros/s/XXXXX/exec
-const KEY  = import.meta.env.VITE_API_KEY;  // must match Settings!B1
+const KEY  = import.meta.env.VITE_API_KEY;  // must match Settings!B1 in your Sheet
 
 function withKeyURL(extraParams = {}) {
   const u = new URL(BASE);
@@ -22,11 +22,11 @@ async function GET(action, params = {}) {
 }
 
 async function POST(action, body = {}) {
-  const url = withKeyURL(); // key in URL too
+  const url = withKeyURL(); // put key in URL too
   const res = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, key: KEY, ...body }), // key in body as well
+    body: JSON.stringify({ action, key: KEY, ...body }), // and key in body
   });
   const data = await res.json().catch(() => ({}));
   if (!res.ok || data.ok === false) {
@@ -36,6 +36,9 @@ async function POST(action, body = {}) {
 }
 
 export const api = {
+  // auth / identity
+  whoami: (email) => GET("whoami", { email }),
+
   // lists & metadata
   lists: () => GET("lists"),
   nextProjectNumber: () => GET("nextProjectNumber"),
