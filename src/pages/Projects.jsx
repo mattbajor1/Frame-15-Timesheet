@@ -1,3 +1,4 @@
+// src/pages/Projects.jsx
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
 
@@ -10,12 +11,11 @@ export default function Projects({ email }) {
   const [modal, setModal] = useState(false);
   const [hint, setHint] = useState("");
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ number: "", name: "", client: "", status: "Active" });
+  const [form, setForm] = useState({ name: "", client: "", status: "Active" });
 
-  async function load(){ const r = await api.lists(); setProjects(r.projects||[]); setTasks(r.tasks||[]); }
-
-  // load only after login
+  // load after login
   useEffect(()=>{ if (email) load(); }, [email]);
+  async function load(){ const r = await api.lists(); setProjects(r.projects||[]); setTasks(r.tasks||[]); }
 
   const filtered = useMemo(()=>{
     const s = q.trim().toLowerCase();
@@ -23,19 +23,18 @@ export default function Projects({ email }) {
     return projects.filter(p => `${p.number} ${p.name} ${p.client} ${p.status}`.toLowerCase().includes(s));
   }, [projects, q]);
 
-  async function openModal(){
-    try { const r = await api.nextProjectNumber(); setHint(r.number); } catch { setHint("P - 1000"); }
-    setForm({ number:"", name:"", client:"", status:"Active" });
+  // Open modal immediately, then fetch hint (no form reset after)
+  function openModal(){
+    setForm({ name:"", client:"", status:"Active" });
     setModal(true);
+    api.nextProjectNumber().then(r=>setHint(r.number)).catch(()=>setHint("P - 1000"));
   }
 
   async function submit(){
     if(!form.name) { alert("Project name is required."); return; }
     setSaving(true);
     try {
-      const payload = { ...form };
-      if(!payload.number) delete payload.number; // auto-number
-      const r = await api.addProject(payload);
+      const r = await api.addProject({ ...form }); // number auto-assigned server-side
       setModal(false);
       await load();
       alert(`Project created: ${r.number}`);
@@ -86,12 +85,12 @@ export default function Projects({ email }) {
         {filtered.length===0 ? <div className="text-neutral-500">No projects yet.</div> :
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
             {filtered.map(p=>(
-              <div key={p.number} className="border rounded-2xl p-4" style={{ borderColor: "var(--line)" }}>
+              <div key={p.number} className="f15-tile">
                 <div className="flex items-center justify-between">
                   <div className="font-semibold">{p.number}</div>
                   <ProgressBadge value={progressByProject[p.number] ?? 0} />
                 </div>
-                <div className="text-sm text-neutral-700">{p.name}</div>
+                <div className="text-sm text-neutral-800">{p.name}</div>
                 <div className="text-xs text-neutral-500 mt-1">{p.client || "—"}</div>
                 <div className="mt-3 flex items-center gap-2">
                   <select className="f15-select" value={p.status} onChange={(e)=>quickStatus(p.number, e.target.value)}>
@@ -109,14 +108,13 @@ export default function Projects({ email }) {
           <div className="f15-card w-full max-w-lg space-y-3">
             <div className="f15-h2">New Project</div>
             <div className="grid gap-3">
-              <div>
-                <label className="text-sm font-medium">Project Number</label>
-                <input className="f15-input mt-1" placeholder={hint || "P - 1000"} value={form.number}
-                       onChange={e=>setForm(f=>({ ...f, number: e.target.value }))}/>
-                <div className="text-xs text-neutral-500 mt-1">Leave blank to auto-assign (next is <b>{hint || "P - 1000"}</b>).</div>
+              <div className="text-xs text-neutral-500">
+                Next number will be <b>{hint || "P - 1000"}</b>.
               </div>
-              <input className="f15-input" placeholder="Name" value={form.name} onChange={e=>setForm(f=>({ ...f, name: e.target.value }))}/>
-              <input className="f15-input" placeholder="Client" value={form.client} onChange={e=>setForm(f=>({ ...f, client: e.target.value }))}/>
+              <input className="f15-input" placeholder="Project name" value={form.name}
+                     onChange={e=>setForm(f=>({ ...f, name: e.target.value }))}/>
+              <input className="f15-input" placeholder="Client (optional)" value={form.client}
+                     onChange={e=>setForm(f=>({ ...f, client: e.target.value }))}/>
               <select className="f15-select" value={form.status} onChange={e=>setForm(f=>({ ...f, status: e.target.value }))}>
                 {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>

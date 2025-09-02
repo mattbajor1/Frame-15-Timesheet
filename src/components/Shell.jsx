@@ -4,10 +4,8 @@ import { api } from "../lib/api";
 
 export default function Shell({ page, setPage, onEmail, children }) {
   const [email, setEmail] = useState("");
-  const [checking, setChecking] = useState(true);
   const [error, setError] = useState("");
 
-  // load cached user
   useEffect(() => {
     try {
       const u = localStorage.getItem("f15:user");
@@ -16,21 +14,17 @@ export default function Shell({ page, setPage, onEmail, children }) {
         setEmail(e);
         onEmail?.(e);
       }
-    } catch {
-      // Ignore errors when loading cached user
-    }
-    setChecking(false);
+    } catch { /* empty */ }
   }, [onEmail]);
 
   async function signIn(e) {
     e?.preventDefault();
     setError("");
-    const form = new FormData(e?.target || undefined);
-    const em = (form.get("email") || email || "").toString().trim().toLowerCase();
+    const em = (new FormData(e.target).get("email") || "").toString().trim().toLowerCase();
     if (!em) { setError("Enter your work email"); return; }
 
     try {
-      const who = await api.whoami(em); // ← THIS is the correct call
+      const who = await api.whoami(em);
       if (!who.allowed) {
         setError(`Only @${who.allowedDomain} accounts are allowed.`);
         return;
@@ -60,9 +54,8 @@ export default function Shell({ page, setPage, onEmail, children }) {
   );
 
   return (
-    <div className="min-h-dvh bg-white text-black">
-      {/* top bar */}
-      <div className="sticky top-0 z-10 border-b bg-white">
+    <div className="min-h-dvh bg-[var(--bg)] text-[var(--text)]">
+      <div className="sticky top-0 z-10 border-b bg-[var(--surface)]">
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center gap-3">
           <div className="font-bold">Frame-15 Internal</div>
           <div className="ml-2 flex items-center gap-2">
@@ -74,33 +67,21 @@ export default function Shell({ page, setPage, onEmail, children }) {
             {email ? (
               <>
                 <span className="text-sm text-neutral-600">{email}</span>
-                <button className="border px-3 py-2 rounded-xl hover:bg-neutral-50" onClick={signOut}>Sign out</button>
+                <button className="f15-btn" onClick={signOut}>Sign out</button>
               </>
             ) : null}
           </div>
         </div>
       </div>
 
-      {/* content */}
       <div className="mx-auto max-w-6xl px-4 py-6">
         {email ? children : (
-          <div className="max-w-md mx-auto border rounded-2xl p-5">
+          <div className="f15-card max-w-md mx-auto">
             <div className="text-xl font-semibold mb-2">Sign in</div>
-            <p className="text-sm text-neutral-600 mb-4">
-              Use your work email. Only the allowed domain can access.
-            </p>
+            <p className="text-sm text-neutral-600 mb-4">Use your work email (@frame15.com).</p>
             <form onSubmit={signIn} className="grid gap-3">
-              <input
-                className="f15-input"
-                type="email"
-                name="email"
-                placeholder="you@frame15.com"
-                defaultValue={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-              <button className="f15-btn f15-btn--primary" type="submit" disabled={checking}>
-                {checking ? "Checking…" : "Continue"}
-              </button>
+              <input className="f15-input" name="email" type="email" placeholder="you@frame15.com" />
+              <button className="f15-btn f15-btn--primary" type="submit">Continue</button>
             </form>
             {error && <div className="text-red-600 text-sm mt-3">{error}</div>}
           </div>
