@@ -1,80 +1,59 @@
-const API_URL = import.meta.env.VITE_API_URL;
-const API_KEY = import.meta.env.VITE_API_KEY;
+// src/lib/api.js
+const BASE = import.meta.env.VITE_API_URL;  // e.g. https://script.google.com/macros/s/XXXXX/exec
+const KEY  = import.meta.env.VITE_API_KEY;  // must match Settings!B1
 
-function currentUser() {
-  try { return JSON.parse(localStorage.getItem("f15:user") || "{}"); }
-  catch { return {}; }
-}
-function currentEmail() { return currentUser().email || ""; }
-function currentIdToken() { return currentUser().idToken || ""; }
-
-async function getJSON(url) {
-  try {
-    const r = await fetch(url, { method: "GET" });
-    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-    const j = await r.json();
-    if (j && j.ok === false && j.error) throw new Error(j.error);
-    return j;
-  } catch (e) {
-    throw new Error(`GET ${url}: ${e.message || e}`);
+function withKeyURL(extraParams = {}) {
+  const u = new URL(BASE);
+  u.searchParams.set("key", KEY);
+  for (const [k, v] of Object.entries(extraParams)) {
+    if (v !== undefined && v !== null && v !== "") u.searchParams.set(k, v);
   }
+  return u.toString();
 }
 
-async function postJSON(body) {
-  try {
-    const r = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify(body),
-    });
-    if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-    const j = await r.json();
-    if (j && j.ok === false && j.error) throw new Error(j.error);
-    return j;
-  } catch (e) {
-    throw new Error(`POST ${API_URL}: ${e.message || e}`);
+async function GET(action, params = {}) {
+  const url = withKeyURL({ ...params, action });
+  const res = await fetch(url, { method: "GET" });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.error || res.statusText || "Request failed");
   }
+  return data;
 }
 
-export async function apiGet(params = {}) {
-  const url = new URL(API_URL);
-  const email = params.email ?? currentEmail();
-  const idToken = params.idToken ?? currentIdToken();
-  Object.entries({ key: API_KEY, email, idToken, ...params }).forEach(([k, v]) => {
-    if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, v);
+async function POST(action, body = {}) {
+  const url = withKeyURL(); // key in URL too
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, key: KEY, ...body }), // key in body as well
   });
-  return getJSON(url.toString());
-}
-
-export async function apiPost(body = {}) {
-  const email = body.email ?? currentEmail();
-  const idToken = body.idToken ?? currentIdToken();
-  return postJSON({ key: API_KEY, email, idToken, ...body });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.ok === false) {
+    throw new Error(data.error || res.statusText || "Request failed");
+  }
+  return data;
 }
 
 export const api = {
-  // meta
-  ping: () => apiGet({ action: "ping" }),
-  whoami: () => apiGet({ action: "whoami" }),
+  // lists & metadata
+  lists: () => GET("lists"),
+  nextProjectNumber: () => GET("nextProjectNumber"),
+  summary: (email) => GET("summary", { email }),
+  activeTimer: (email) => GET("activeTimer", { email }),
 
-  // lists & reports
-  lists: (opts = {}) => apiGet({ action: "lists", ...opts }),
-  report: (q = {}) => apiGet({ action: "report", ...q }),
-  timelog: (q = {}) => apiGet({ action: "timelog", ...q }),
-  nextProjectNumber: () => apiGet({ action: "nextProjectNumber" }),
+  // projects
+  addProject: (payload) => POST("addProject", payload),
+  updateProject: (payload) => POST("updateProject", payload),
 
-  // timers
-  summary: (email) => apiGet({ action: "summary", email }),
-  activeTimer: (email) => apiGet({ action: "activeTimer", email }),
-  punch: (payload) => apiPost({ action: "punch", ...payload }),
+  // tasks
+  addTask: (payload) => POST("addTask", payload),
 
-  // projects/tasks
-  addProject: (p) => apiPost({ action: "addProject", ...p }),
-  updateProject: (p) => apiPost({ action: "updateProject", ...p }),
-  addTask: (t) => apiPost({ action: "addTask", ...t }),
-  updateTask: (t) => apiPost({ action: "updateTask", ...t }),
+  // time & reports
+  punch: (payload) => POST("punch", payload),
+  timelog: (params) => GET("timelog", params),
+  report: (params) => GET("report", params),
 
-  // admin
-  lockPastWeeks: () => apiPost({ action: "lockPastWeeks" }),
-  truncate: (tables) => apiPost({ action: "truncate", tables }),
+  // health
+  ping: () => GET("ping"),
 };
