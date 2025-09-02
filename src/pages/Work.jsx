@@ -5,7 +5,7 @@ function useLocal(key, initial) {
   const [v, setV] = useState(() => {
     try { const x = localStorage.getItem(key); return x ? JSON.parse(x) : initial; } catch { return initial; }
   });
-  useEffect(() => { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* ignore localStorage errors */ } }, [key, v]);
+  useEffect(() => { try { localStorage.setItem(key, JSON.stringify(v)); } catch { /* empty */ } }, [key, v]);
   return [v, setV];
 }
 
@@ -28,7 +28,11 @@ export default function Work({ email }) {
 
   const [sel, setSel] = useLocal("f15:last", { projectNumber: "", taskName: "", billable: true });
 
-  useEffect(() => { (async () => { const r = await api.lists(); setLists(r); })(); }, []);
+  // load only after login
+  useEffect(() => {
+    if (!email) return;
+    (async () => { const r = await api.lists(); setLists(r); })();
+  }, [email]);
 
   const taskOptions = useMemo(
     () => lists.tasks.filter(t => !sel.projectNumber || t.projectNumber === sel.projectNumber),
@@ -102,7 +106,7 @@ export default function Work({ email }) {
               <option value="">— Select existing task —</option>
               {taskOptions.map(t => <option key={t.id} value={t.name}>{t.name} ({t.id})</option>)}
             </select>
-            <div className="text-xs text-neutral-500 mt-1">Type a new task name then click “Quick add” to create it.</div>
+            <div className="text-xs text-neutral-500 mt-1">Type a new task name then click “Quick add”.</div>
           </div>
 
           <label className="inline-flex items-center gap-2">

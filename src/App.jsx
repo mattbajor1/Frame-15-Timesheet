@@ -1,18 +1,23 @@
-import { useState } from "react";
-import Shell from "./components/Shell.jsx";
-import Work from "./pages/Work.jsx";
-import Projects from "./pages/Projects.jsx";
-import Insights from "./pages/Insights.jsx";
+import { useEffect, useState } from "react";
+import Shell from "./components/Shell";
+import Work from "./pages/Work";
+import Projects from "./pages/Projects";
+import Insights from "./pages/Insights";
 
 export default function App(){
-  const [page, setPage] = useState("projects");
+  const [page, setPage] = useState("work");
   const [email, setEmail] = useState("");
+
+  useEffect(()=>{
+    const u = localStorage.getItem("f15:user");
+    if(u) setEmail(JSON.parse(u).email || "");
+  },[]);
 
   return (
     <Shell page={page} setPage={setPage} onEmail={setEmail}>
-      {page === "work" && <Work email={email} />}
-      {page === "projects" && <Projects />}
-      {page === "insights" && <Insights />}
+      {page==='work'     && <Work email={email} />}
+      {page==='projects' && <Projects email={email} />}
+      {page==='insights' && <Insights />}
     </Shell>
   );
 }
