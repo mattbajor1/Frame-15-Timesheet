@@ -9,6 +9,7 @@ export default function Projects({ email }) {
   const [q, setQ] = useState("");
   const [modal, setModal] = useState(false);
   const [hint, setHint] = useState("");
+  const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ number: "", name: "", client: "", status: "Active" });
 
   async function load(){ const r = await api.lists(); setProjects(r.projects||[]); setTasks(r.tasks||[]); }
@@ -29,13 +30,20 @@ export default function Projects({ email }) {
   }
 
   async function submit(){
-    if(!form.name) return;
-    const payload = { ...form };
-    if(!payload.number) delete payload.number; // auto-number
-    const r = await api.addProject(payload);
-    setModal(false);
-    await load();
-    alert(`Project created: ${r.number}`);
+    if(!form.name) { alert("Project name is required."); return; }
+    setSaving(true);
+    try {
+      const payload = { ...form };
+      if(!payload.number) delete payload.number; // auto-number
+      const r = await api.addProject(payload);
+      setModal(false);
+      await load();
+      alert(`Project created: ${r.number}`);
+    } catch (err) {
+      alert(`Create failed: ${err?.message || err}`);
+    } finally {
+      setSaving(false);
+    }
   }
 
   const progressByProject = useMemo(() => {
@@ -53,8 +61,12 @@ export default function Projects({ email }) {
   }, [tasks]);
 
   async function quickStatus(number, status){
-    await api.updateProject({ number, status });
-    await load();
+    try {
+      await api.updateProject({ number, status });
+      await load();
+    } catch (e) {
+      alert(`Update failed: ${e?.message || e}`);
+    }
   }
 
   function ProgressBadge({ value }){
@@ -110,8 +122,10 @@ export default function Projects({ email }) {
               </select>
             </div>
             <div className="flex justify-end gap-2">
-              <button className="f15-btn" onClick={()=>setModal(false)}>Cancel</button>
-              <button className="f15-btn f15-btn--primary" onClick={submit}>Create</button>
+              <button className="f15-btn" onClick={()=>setModal(false)} disabled={saving}>Cancel</button>
+              <button className="f15-btn f15-btn--primary" onClick={submit} disabled={saving}>
+                {saving ? "Creating…" : "Create"}
+              </button>
             </div>
           </div>
         </div>
