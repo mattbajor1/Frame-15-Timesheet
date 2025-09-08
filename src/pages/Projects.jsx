@@ -16,7 +16,6 @@ export default function Projects({ email }) {
   const [err, setErr] = useState("");
   const [loading, setLoading] = useState(true);
 
-  // paint from cache
   useEffect(() => {
     const cached = api.listsCached();
     if (cached) {
@@ -29,14 +28,13 @@ export default function Projects({ email }) {
   const load = useCallback(async () => {
     setErr(""); setLoading(true);
     try {
-      const [lists] = await Promise.all([api.lists()]);
+      const lists = await api.lists();
       setProjects(lists.projects || []);
       setUsers((lists.users || []).filter((u) => u.active !== false));
     } catch (e) {
       setErr(`Projects failed to load: ${e?.message || e}`);
     } finally { setLoading(false); }
   }, []);
-
   useEffect(() => { if (email) load(); }, [email, load]);
 
   const filtered = useMemo(() => {
@@ -49,49 +47,35 @@ export default function Projects({ email }) {
     setForm({ name: "", client: "", status: "Active" });
     setModal(true);
     setHint("…");
-    api.nextProjectNumber().then((r) => setHint(r.number)).catch(() => setHint("P - 1000"));
+    api.nextProjectNumber().then(r => setHint(r.number)).catch(() => setHint("P - 1000"));
   }
   async function submit() {
     if (!form.name) { t.show("Project name is required.", "error"); return; }
     setSaving(true);
-    try {
-      const r = await api.addProject({ ...form });
-      t.show(`Created ${r.number}`, "success");
-      setModal(false);
-      await load();
-    } catch (e) {
-      t.show(`Create failed: ${e?.message || e}`, "error", 4000);
-    } finally { setSaving(false); }
+    try { const r = await api.addProject({ ...form }); t.show(`Created ${r.number}`, "success"); setModal(false); await load(); }
+    catch (e) { t.show(`Create failed: ${e?.message || e}`, "error", 4000); }
+    finally { setSaving(false); }
   }
 
   const [detail, setDetail] = useState(null);
   async function openDetail(number) {
-    try {
-      const d = await api.projectDetails(number);
-      if (!d.ok) throw new Error(d.error || "Failed");
-      setDetail(d);
-    } catch (e) {
-      t.show(String(e?.message || e), "error", 4000);
-    }
+    try { const d = await api.projectDetails(number); if (!d.ok) throw new Error(d.error || "Failed"); setDetail(d); }
+    catch (e) { t.show(String(e?.message || e), "error", 4000); }
   }
 
   return detail ? (
     <ProjectDetail detail={detail} users={users} onBack={() => setDetail(null)} onReload={async () => {
       const d = await api.projectDetails(detail.project.number);
-      setDetail(d);
-      await load();
+      setDetail(d); await load();
     }} />
   ) : (
     <div className="space-y-4">
-      {/* non-boxy banner */}
-      <div className="relative rounded-2xl px-5 py-6 overflow-hidden"
-           style={{ border: "1px solid var(--line)", background: "linear-gradient(120deg, rgba(59,130,246,.12), rgba(239,68,68,.12))" }}>
+      <div className="relative rounded-2xl px-5 py-6 overflow-hidden" style={{ border:"1px solid var(--line)", background:"linear-gradient(120deg, rgba(59,130,246,.12), rgba(239,68,68,.12))" }}>
         <div className="relative z-10">
           <div className="text-sm text-gray-300">Planner</div>
           <div className="text-2xl font-semibold">Projects</div>
           <div className="mt-3 flex flex-wrap gap-2">
-            <input className="w-full md:w-80 rounded-xl px-3 py-2 border bg-transparent"
-                   style={{ borderColor: "var(--line)" }} placeholder="Search projects…"
+            <input className="w-full md:w-80 rounded-xl px-3 py-2 border bg-transparent" style={{ borderColor: "var(--line)" }} placeholder="Search projects…"
                    value={q} onChange={(e) => setQ(e.target.value)} />
             <button className="px-4 py-2 rounded-xl font-semibold bg-white text-black" onClick={openModal}>New project</button>
             <button className="px-4 py-2 rounded-xl" style={{ border: "1px solid var(--line)" }} onClick={load}>Refresh</button>
@@ -165,13 +149,9 @@ function ProjectDetail({ detail, users, onBack, onReload }) {
 
   async function saveMeta() {
     setSaving(true);
-    try {
-      await api.updateProject({ number: p.number, ...edit });
-      t.show("Saved ✓", "success");
-      await onReload();
-    } catch (e) {
-      t.show(`Save failed: ${e?.message || e}`, "error", 4000);
-    } finally { setSaving(false); }
+    try { await api.updateProject({ number: p.number, ...edit }); t.show("Saved ✓", "success"); await onReload(); }
+    catch (e) { t.show(`Save failed: ${e?.message || e}`, "error", 4000); }
+    finally { setSaving(false); }
   }
   async function quickAddTask(e) {
     e.preventDefault();
@@ -281,11 +261,6 @@ function ProjectDetail({ detail, users, onBack, onReload }) {
                     <input type="number" min="0" max="100" className="rounded-lg px-2 py-1 border bg-transparent text-sm w-20" style={{ borderColor: "var(--line)" }}
                            value={t.progress} onChange={(e)=>changeProgress(t, e.target.value)} />
                     <span>%</span>
-                  </div>
-                  <div className="ml-auto">
-                    <span className="text-xs px-2 py-1 rounded-full" style={{ border: "1px solid var(--line)" }}>
-                      {(detail.time.byTask.find(x=>x.task===t.name)?.hours || 0).toFixed(2)} h
-                    </span>
                   </div>
                 </div>
               </div>

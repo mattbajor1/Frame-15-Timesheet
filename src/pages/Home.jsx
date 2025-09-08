@@ -1,7 +1,7 @@
-// src/pages/Home.jsx
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
-import logo from "../assets/f15_internal.png"; // 👈 local import, no env var
+import logo from "../assets/frame15-internal-logo.webp";
+import BreathingBackdrop from "../components/BreathingBackdrop.jsx";
 
 const greetings = [
   "Let’s build something great today.",
@@ -14,7 +14,7 @@ const greetings = [
 export default function Home({ setPage }) {
   const [greet, setGreet] = useState("");
   const [lists, setLists] = useState({ projects: [], tasks: [], users: [] });
-  const [, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [err, setErr] = useState("");
 
   useEffect(() => {
@@ -28,6 +28,7 @@ export default function Home({ setPage }) {
     })();
   }, []);
 
+  const quickProjects = useMemo(() => (lists.projects || []).slice(0, 6), [lists.projects]);
   const upcoming = useMemo(() => {
     const arr = (lists.tasks || []).filter(t=>t.dueISO).slice().sort((a,b)=> a.dueISO > b.dueISO ? 1 : -1);
     return arr.slice(0, 6);
@@ -36,26 +37,18 @@ export default function Home({ setPage }) {
   return (
     <div className="space-y-6">
       <div className="relative overflow-hidden rounded-2xl p-6"
-           style={{ border: "1px solid var(--line)", background: "linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,.02))" }}>
-        <div className="absolute -top-24 -left-24 w-[28rem] h-[28rem] rounded-full blur-3xl opacity-20"
-             style={{ background: "radial-gradient(circle, #3b82f6 0%, transparent 60%)" }} />
-        <div className="absolute -bottom-28 -right-28 w-[34rem] h-[34rem] rounded-full blur-3xl opacity-20"
-             style={{ background: "radial-gradient(circle, #ef4444 0%, transparent 60%)" }} />
+           style={{ border: "1px solid var(--line)", background: "linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02))" }}>
+        <BreathingBackdrop />
 
-        {/* watermark uses local import */}
-        <img src={logo} alt="" aria-hidden className="pointer-events-none select-none absolute -right-10 -top-10 hidden md:block"
-             style={{ height: "180%", opacity: .06, filter: "blur(1px) drop-shadow(0 24px 40px rgba(0,0,0,.35))", transform: "rotate(-2.5deg)" }}/>
+        {/* PROMINENT LOGO ROW */}
+        <div className="relative z-10 flex items-center gap-3">
+          <img src={logo} alt="Frame 15 Internal" className="h-10 w-auto drop-shadow" />
+          <div className="text-sm text-blue-300/90">Frame-15 Internal</div>
+        </div>
 
-        <div className="relative z-10">
-          <div className="flex items-center gap-3">
-            <span className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs"
-                  style={{ border: "1px solid var(--line)", background: "var(--surface-2)" }}>
-              <img src={logo} alt="" className="h-4 w-4 object-contain" />
-              Frame-15 Internal
-            </span>
-          </div>
-          <h1 className="text-3xl font-bold mt-3">Everything in one frame.</h1>
-          <p className="text-gray-400 mt-1">{greet}</p>
+        <div className="relative z-10 mt-2">
+          <h1 className="text-3xl font-bold">Everything in one frame.</h1>
+          <p className="text-gray-300 mt-1">{greet}</p>
 
           <div className="mt-4 flex flex-wrap gap-2">
             <button onClick={()=>setPage("projects")} className="px-4 py-2 rounded-xl font-semibold bg-white text-black">Manage Projects</button>
@@ -63,20 +56,9 @@ export default function Home({ setPage }) {
             <button onClick={()=>setPage("insights")} className="px-4 py-2 rounded-xl font-semibold" style={{ border: "1px solid var(--line)" }}>View Insights</button>
           </div>
         </div>
-
-        <div className="relative z-10 mt-6">
-          <div className="overflow-hidden rounded-xl" style={{ border: "1px solid var(--line)", background: "var(--surface)" }}>
-            <div className="flex items-center gap-6 py-2 px-3 opacity-60">
-              {Array.from({ length: 12 }).map((_, i) => (
-                <img key={i} src={logo} alt="" className="h-5 w-auto object-contain" style={{ filter: "grayscale(1) brightness(1.3)" }} />
-              ))}
-            </div>
-          </div>
-        </div>
       </div>
 
-      {/* …rest of the component unchanged … */}
-      {/* KPIs, tiles, errors, etc. */}
+      {/* KPIs */}
       <div className="grid md:grid-cols-3 gap-4">
         <div className="rounded-2xl p-5" style={{ border: "1px solid var(--line)", background: "var(--surface)" }}>
           <div className="text-sm text-gray-400">Projects</div>
@@ -92,8 +74,35 @@ export default function Home({ setPage }) {
         </div>
       </div>
 
+      {/* tiles */}
       <div className="rounded-2xl p-5" style={{ border: "1px solid var(--line)", background: "var(--surface)" }}>
-        {/* …active projects grid… */}
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-xl font-semibold">Active projects</div>
+          <button onClick={()=>setPage("projects")} className="px-3 py-1.5 rounded-lg hover:bg-white/10">All Projects →</button>
+        </div>
+        {loading ? (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {Array.from({ length: 6 }).map((_, i) => (
+              <div key={i} className="h-28 rounded-xl animate-pulse" style={{ background: "var(--surface-2)", border: "1px solid var(--line)" }} />
+            ))}
+          </div>
+        ) : quickProjects.length === 0 ? (
+          <div className="text-gray-400 text-sm">No projects yet.</div>
+        ) : (
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {quickProjects.map((p) => (
+              <div key={p.number} className="rounded-xl p-4 hover:-translate-y-0.5 transition"
+                   style={{ border: "1px solid var(--line)", background: "var(--surface-2)" }}>
+                <div className="flex items-center justify-between">
+                  <div className="font-semibold">{p.number}</div>
+                  <span className="text-xs px-2 py-1 rounded-full" style={{ border: "1px solid var(--line)" }}>{p.status}</span>
+                </div>
+                <div className="text-sm mt-1">{p.name}</div>
+                <div className="text-xs text-gray-400">{p.client || "—"}</div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {err && <div className="text-red-500 text-sm">{err}</div>}
