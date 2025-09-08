@@ -1,85 +1,76 @@
 @import "tailwindcss";
 
-/* Color tokens */
+/* Theme */
 :root {
-  --bg: #0a0a0a;           /* deep black background */
-  --surface: #111213;      /* panel surface */
-  --text: #f7f7f7;         /* primary text */
-  --muted: #9ca3af;        /* gray-400 */
-  --line: #1f2937;         /* gray-800 border */
-  --blue: #2563eb;         /* blue-600 */
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --text: #0a0a0a;
+  --muted: #6b7280;      /* neutral-500 */
+  --line: #e5e7eb;       /* neutral-200 */
+  --blue: #2563eb;       /* blue-600 */
   --blue-700: #1d4ed8;
-  --red: #ef4444;          /* red-500 */
+  --red: #ef4444;        /* red-500 */
   --red-600: #dc2626;
 }
 
 html, body, #root { height: 100%; }
-body { margin: 0; background: var(--bg); color: var(--text); font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial; }
+body { margin: 0; background: var(--bg); color: var(--text); font-feature-settings: "ss01" 1, "cv01" 1; }
 
-/* Cards / tiles */
-.f15-card {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 20px;
-  box-shadow: 0 10px 24px rgba(0,0,0,0.25);
+/* Containers */
+.f15-card { @apply rounded-2xl shadow-lg border p-5 bg-white; border-color: var(--line); }
+.f15-hero {
+  @apply rounded-2xl border p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4;
+  background:
+    radial-gradient(1200px 300px at -10% -30%, rgba(37,99,235,0.08), transparent 60%),
+    radial-gradient(1200px 300px at 110% 130%, rgba(239,68,68,0.08), transparent 60%),
+    var(--surface);
+  border-color: var(--line);
 }
-
-.f15-tile {
-  background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 16px;
-  padding: 16px;
-  transition: transform .2s ease, box-shadow .2s ease;
-}
-.f15-tile:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(0,0,0,0.25);
-}
+.f15-tile { @apply rounded-xl border p-4 bg-white transition; border-color: var(--line); }
+.f15-tile:hover { @apply shadow-md; transform: translateY(-1px); }
 
 /* Buttons */
-.f15-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  padding: 10px 14px; border-radius: 12px; border: 1px solid var(--line);
-  background: transparent; color: var(--text); transition: background .2s ease, border-color .2s ease, color .2s ease;
-}
-.f15-btn:hover { background: rgba(255,255,255,0.04); }
-.f15-btn--primary { background: #000; border-color: #000; color: #fff; }
-.f15-btn--primary:hover { background: #111; }
-.f15-btn--blue { background: var(--blue); border-color: var(--blue); color: #fff; }
+.f15-btn  { @apply inline-flex items-center justify-center rounded-xl px-4 py-2 transition border text-sm; border-color: var(--line); }
+.f15-btn:hover { @apply bg-neutral-50; }
+.f15-btn--primary { background: var(--text); color: white; border-color: #0a0a0a; }
+.f15-btn--primary:hover { background: #111111; }
+.f15-btn--blue { background: var(--blue); color: white; border-color: var(--blue); }
 .f15-btn--blue:hover { background: var(--blue-700); border-color: var(--blue-700); }
-.f15-btn--danger { color: var(--red-600); border-color: var(--red); }
+.f15-btn--danger { color: var(--red-600); border-color: var(--red); background: #fff0f0; }
+.f15-badge { @apply text-xs px-2 py-1 rounded-full border; border-color: var(--line); }
 
 /* Inputs */
-.f15-input, .f15-select {
-  width: 100%; padding: 10px 12px; border-radius: 12px;
-  border: 1px solid var(--line); background: #0f1112; color: var(--text);
-  outline: none;
+.f15-input, .f15-select, textarea.f15-input {
+  @apply w-full px-3 py-2 rounded-xl border bg-white outline-none transition text-sm;
+  border-color: var(--line);
 }
-.f15-input:focus, .f15-select:focus { box-shadow: 0 0 0 3px rgba(37,99,235,0.35); border-color: var(--blue); }
+.f15-input:focus, .f15-select:focus, textarea.f15-input:focus { @apply ring-2 ring-neutral-200; box-shadow: none; }
+.f15-select { appearance: none; background-image: url('data:image/svg+xml;utf8,<svg fill="none" stroke="%236b7280" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 9l6 6 6-6"/></svg>'); background-repeat: no-repeat; background-position: right .7rem center; background-size: 1rem; padding-right: 2rem; }
+.f15-label { @apply text-xs text-neutral-500; }
 
-.f15-select {
-  appearance: none;
-  background-image: url('data:image/svg+xml;utf8,<svg fill="none" stroke="%239ca3af" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 9l6 6 6-6"/></svg>');
-  background-repeat: no-repeat;
-  background-position: right .7rem center;
-  background-size: 1rem;
-  padding-right: 2rem;
-}
+/* Text */
+.f15-h1 { @apply text-3xl font-bold tracking-tight; }
+.f15-h2 { @apply text-xl font-semibold; }
 
-/* CTA */
-.f15-cta { border-radius: 16px; padding: 16px 28px; font-weight: 600; background: #000; color: #fff; border: 1px solid #000; }
-.f15-cta:hover { background: #111; }
-
-/* Headings */
-.f15-h1 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
-.f15-h2 { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; }
-
-/* Utility grid helpers (optional) */
-.f15-grid { display: grid; gap: 1.25rem; }
+/* Grid helpers */
+.f15-grid { @apply grid gap-4; }
 @media (min-width: 768px) { .f15-grid-2 { grid-template-columns: 1fr 1fr; } }
 @media (min-width: 1024px) { .f15-grid-3 { grid-template-columns: 1fr 1fr 1fr; } }
 
-/* Links hover color accents */
-a { color: var(--blue); text-decoration: none; }
-a:hover { color: var(--red); }
+/* KPI */
+.f15-kpi { @apply relative overflow-hidden; }
+.f15-kpi::after {
+  content:""; position:absolute; inset:0;
+  background: radial-gradient(500px 120px at 120% -20%, rgba(37,99,235,0.07), transparent 60%);
+  pointer-events:none;
+}
+.f15-kpi-value { @apply text-3xl font-bold mt-1; }
+
+/* Skeletons */
+@keyframes f15-shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
+.f15-skeleton {
+  background: linear-gradient(90deg, #f5f5f5 25%, #eeeeee 37%, #f5f5f5 63%);
+  background-size: 400% 100%;
+  animation: f15-shimmer 1.4s ease-in-out infinite;
+  min-height: 96px;
+}
