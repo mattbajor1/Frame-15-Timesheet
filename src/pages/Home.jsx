@@ -1,8 +1,7 @@
-// src/pages/Home.jsx
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
 
-const GREETINGS = [
+const greetings = [
   "Let’s build something great today.",
   "Small steps, big wins.",
   "Sharp focus. Clean execution.",
@@ -10,157 +9,120 @@ const GREETINGS = [
   "Stay curious. Stay kind.",
 ];
 
-export default function Home({ email, setPage }) {
+export default function Home({ setPage }) {
   const [greet, setGreet] = useState("");
-  const [summary, setSummary] = useState({ todayHours: 0, weekHours: 0, active: null });
-  const [data, setData] = useState({ projects: [], tasks: [], users: [] });
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState("");
+  const [lists, setLists] = useState({ projects: [], tasks: [], users: [] });
   const [loading, setLoading] = useState(true);
+  const [err, setErr] = useState("");
 
-  // greeting
-  useEffect(() => { setGreet(GREETINGS[Math.floor(Math.random()*GREETINGS.length)]); }, []);
-
-  // show cached lists immediately
+  // instant paint from cache
   useEffect(() => {
+    setGreet(greetings[Math.floor(Math.random()*greetings.length)]);
     const cached = api.listsCached();
-    if (cached) setData({ projects: cached.projects||[], tasks: cached.tasks||[], users: cached.users||[] });
+    if (cached) { setLists(cached); setLoading(false); }
+    (async () => {
+      try { const l = await api.lists(); setLists(l); }
+      catch (e) { setErr(String(e?.message || e)); }
+      finally { setLoading(false); }
+    })();
   }, []);
 
-  const refresh = useCallback(async () => {
-    if (!email) return;
-    setErr("");
-    setLoading(true);
-    try {
-      const [s, l] = await Promise.all([api.shiftSummary(email), api.lists()]);
-      setSummary(s);
-      setData({ projects: l.projects || [], tasks: l.tasks || [], users: l.users || [] });
-    } catch (e) {
-      setErr(String(e?.message || e));
-    } finally { setLoading(false); }
-  }, [email]);
-
-  useEffect(() => { if (email) refresh(); }, [email, refresh]);
-
+  const quickProjects = useMemo(() => (lists.projects||[]).slice(0, 6), [lists.projects]);
   const upcoming = useMemo(() => {
-    const arr = (data.tasks || []).filter(t => t.dueISO).slice().sort((a,b) => (a.dueISO > b.dueISO ? 1 : -1));
+    const arr = (lists.tasks||[]).filter(t=>t.dueISO).slice().sort((a,b)=> a.dueISO > b.dueISO ? 1 : -1);
     return arr.slice(0, 6);
-  }, [data.tasks]);
-
-  // optimistic shift actions
-  async function start() {
-    if (summary.active) return;
-    setBusy(true); setErr("");
-    const prev = summary;
-    const nowISO = new Date().toISOString();
-    setSummary(s => ({ ...s, active: { inISO: nowISO } })); // optimistic
-    try { await api.startShift(); await refresh(); }
-    catch (e) { setSummary(prev); setErr(String(e?.message||e)); }
-    finally { setBusy(false); }
-  }
-
-  async function stop() {
-    if (!summary.active) return;
-    setBusy(true); setErr("");
-    const prev = summary;
-    try {
-      // optimistic: compute a quick delta; real source will correct on refresh
-      const inD = new Date(summary.active.inISO);
-      const now = new Date();
-      const addMin = Math.max(0, Math.round((now - inD)/60000));
-      setSummary(s => ({ todayHours: s.todayHours + addMin/60, weekHours: s.weekHours + addMin/60, active: null }));
-      await api.stopShift();
-      await refresh();
-    } catch (e) {
-      setSummary(prev);
-      setErr(String(e?.message || e));
-    } finally { setBusy(false); }
-  }
+  }, [lists.tasks]);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Hero */}
-      <div className="f15-hero">
-        <div>
-          <div className="text-sm tracking-wide text-blue-600">Frame-15 Internal</div>
-          <div className="text-2xl font-bold mt-1">Welcome back</div>
-          <div className="text-neutral-500 mt-1">{greet}</div>
-        </div>
-        <div className="flex items-center gap-2">
-          {summary.active ? (
-            <button className="f15-btn f15-btn--danger" onClick={stop} disabled={busy}>Clock out</button>
-          ) : (
-            <button className="f15-btn f15-btn--blue" onClick={start} disabled={busy}>Clock in</button>
-          )}
-          <button className="f15-btn" onClick={()=>setPage("projects")}>Open Projects →</button>
+      <div className="rounded-2xl p-6 relative overflow-hidden"
+           style={{background:"linear-gradient(180deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02))",
+                   border:"1px solid var(--line)"}}>
+        <div className="absolute -top-20 -left-20 w-96 h-96 rounded-full blur-3xl opacity-20"
+             style={{background:"radial-gradient(circle, #3b82f6 0%, transparent 60%)"}} />
+        <div className="absolute -bottom-24 -right-24 w-[28rem] h-[28rem] rounded-full blur-3xl opacity-20"
+             style={{background:"radial-gradient(circle, #ef4444 0%, transparent 60%)"}} />
+        <div className="relative z-10">
+          <div className="text-blue-400 text-sm">Frame-15 Internal</div>
+          <h1 className="text-3xl font-bold mt-1">Welcome back</h1>
+          <p className="text-gray-400 mt-1">{greet}</p>
+
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button onClick={()=>setPage("projects")}
+                    className="px-4 py-2 rounded-xl font-semibold bg-white text-black">Manage Projects</button>
+            <button onClick={()=>setPage("work")}
+                    className="px-4 py-2 rounded-xl font-semibold"
+                    style={{border:"1px solid var(--line)"}}>Open Work</button>
+            <button onClick={()=>setPage("insights")}
+                    className="px-4 py-2 rounded-xl font-semibold"
+                    style={{border:"1px solid var(--line)"}}>View Insights</button>
+          </div>
         </div>
       </div>
 
-      {/* Stats */}
+      {/* Highlights */}
       <div className="grid md:grid-cols-3 gap-4">
-        <div className="f15-card f15-kpi">
-          <div className="text-sm text-neutral-500">Today</div>
-          <div className="f15-kpi-value">{summary.todayHours.toFixed(2)} h</div>
+        <div className="rounded-2xl p-5" style={{border:"1px solid var(--line)", background:"var(--surface)"}}>
+          <div className="text-sm text-gray-400">Projects</div>
+          <div className="text-3xl font-bold mt-1">{(lists.projects||[]).length}</div>
         </div>
-        <div className="f15-card f15-kpi">
-          <div className="text-sm text-neutral-500">This week</div>
-          <div className="f15-kpi-value">{summary.weekHours.toFixed(2)} h</div>
+        <div className="rounded-2xl p-5" style={{border:"1px solid var(--line)", background:"var(--surface)"}}>
+          <div className="text-sm text-gray-400">People</div>
+          <div className="text-3xl font-bold mt-1">{(lists.users||[]).filter(u=>u.active!==false).length}</div>
         </div>
-        <div className="f15-card">
-          <div className="text-sm text-neutral-500 mb-1">Shift</div>
-          {summary.active ? (
-            <div className="flex items-center justify-between">
-              <div className="text-sm">Clocked in since <b>{new Date(summary.active.inISO).toLocaleTimeString()}</b></div>
-              <span className="f15-badge">Active</span>
-            </div>
-          ) : (
-            <div className="text-sm">Not on the clock</div>
-          )}
+        <div className="rounded-2xl p-5" style={{border:"1px solid var(--line)", background:"var(--surface)"}}>
+          <div className="text-sm text-gray-400">Upcoming tasks</div>
+          <div className="text-3xl font-bold mt-1">{upcoming.length}</div>
         </div>
       </div>
 
-      {/* Projects */}
-      <div className="f15-card">
-        <div className="flex items-center justify-between mb-2">
-          <div className="f15-h2">Active projects</div>
-          <button className="f15-btn" onClick={()=>setPage("projects")}>Manage →</button>
+      {/* Project tiles */}
+      <div className="rounded-2xl p-5" style={{border:"1px solid var(--line)", background:"var(--surface)"}}>
+        <div className="flex items-center justify-between mb-3">
+          <div className="text-xl font-semibold">Active projects</div>
+          <button onClick={()=>setPage("projects")} className="px-3 py-1.5 rounded-lg hover:bg-white/10">All Projects →</button>
         </div>
         {loading ? (
-          <div className="f15-grid f15-grid-3">
-            {Array.from({length:6}).map((_,i)=><div className="f15-tile f15-skeleton" key={i} />)}
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {Array.from({length:6}).map((_,i)=><div key={i} className="h-28 rounded-xl animate-pulse" style={{background:"var(--surface-2)", border:"1px solid var(--line)"}} />)}
           </div>
+        ) : quickProjects.length === 0 ? (
+          <div className="text-gray-400 text-sm">No projects yet.</div>
         ) : (
-          <div className="f15-grid f15-grid-3">
-            {data.projects.slice(0,6).map(p=>(
-              <div key={p.number} className="f15-tile">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {quickProjects.map(p=>(
+              <div key={p.number} className="rounded-xl p-4 hover:-translate-y-0.5 transition"
+                   style={{border:"1px solid var(--line)", background:"var(--surface-2)"}}>
                 <div className="flex items-center justify-between">
                   <div className="font-semibold">{p.number}</div>
-                  <span className="f15-badge">{p.status}</span>
+                  <span className="text-xs px-2 py-1 rounded-full" style={{border:"1px solid var(--line)"}}>{p.status}</span>
                 </div>
                 <div className="text-sm mt-1">{p.name}</div>
-                <div className="text-xs text-neutral-500">{p.client || "—"}</div>
+                <div className="text-xs text-gray-400">{p.client || "—"}</div>
               </div>
             ))}
-            {data.projects.length===0 && <div className="text-neutral-500">No projects yet.</div>}
           </div>
         )}
       </div>
 
-      {/* Upcoming */}
-      <div className="f15-card">
-        <div className="f15-h2 mb-2">Upcoming due</div>
+      {/* Upcoming due */}
+      <div className="rounded-2xl p-5" style={{border:"1px solid var(--line)", background:"var(--surface)"}}>
+        <div className="text-xl font-semibold mb-2">Upcoming due</div>
         {loading ? (
-          <div className="f15-grid f15-grid-3">{Array.from({length:6}).map((_,i)=><div className="f15-tile f15-skeleton" key={i} />)}</div>
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {Array.from({length:6}).map((_,i)=><div key={i} className="h-24 rounded-xl animate-pulse" style={{background:"var(--surface-2)", border:"1px solid var(--line)"}} />)}
+          </div>
         ) : upcoming.length === 0 ? (
-          <div className="text-neutral-500 text-sm">No upcoming task due dates.</div>
+          <div className="text-gray-400 text-sm">No upcoming task due dates.</div>
         ) : (
-          <div className="f15-grid f15-grid-3">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
             {upcoming.map(t=>(
-              <div key={t.id} className="f15-tile">
-                <div className="text-sm font-semibold">{t.name}</div>
-                <div className="text-xs text-neutral-500 mt-1">{t.projectNumber}</div>
+              <div key={t.id} className="rounded-xl p-4" style={{border:"1px solid var(--line)", background:"var(--surface-2)"}}>
+                <div className="text-sm font-medium">{t.name}</div>
+                <div className="text-xs text-gray-400 mt-1">{t.projectNumber}</div>
                 <div className="text-xs mt-2">Due: <b>{new Date(t.dueISO).toLocaleDateString()}</b></div>
-                <div className="text-xs text-neutral-500 mt-1">{t.assignee || "Unassigned"}</div>
+                <div className="text-xs text-gray-400 mt-1">{t.assignee || "Unassigned"}</div>
               </div>
             ))}
           </div>

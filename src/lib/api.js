@@ -1,19 +1,26 @@
 // src/lib/api.js
-const BASE = import.meta.env.VITE_API_URL;
-const KEY  = import.meta.env.VITE_API_KEY;
+const BASE = import.meta.env.VITE_API_URL ?? "";
+const KEY  = import.meta.env.VITE_API_KEY ?? "";
 
 const TIMEOUT_MS = 12000;
 
 function getEmail() {
-  try { return JSON.parse(localStorage.getItem("f15:user") || "{}").email || ""; }
-  catch { return ""; }
+  try {
+    const raw = localStorage.getItem("f15:user");
+    if (!raw) return "";
+    const u = JSON.parse(raw);
+    return u?.email || "";
+  } catch {
+    return "";
+  }
 }
-function withKeyURL(extraParams = {}) {
+
+function urlWith(params = {}) {
   const u = new URL(BASE);
   u.searchParams.set("key", KEY);
   const email = getEmail();
   if (email) u.searchParams.set("email", email);
-  for (const [k, v] of Object.entries(extraParams)) {
+  for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== null && v !== "") u.searchParams.set(k, v);
   }
   return u.toString();
@@ -21,34 +28,43 @@ function withKeyURL(extraParams = {}) {
 
 async function fetchJSON(url, options = {}) {
   const ac = new AbortController();
-  const id = setTimeout(() => ac.abort(), TIMEOUT_MS);
+  const to = setTimeout(() => ac.abort(), TIMEOUT_MS);
   try {
     const res = await fetch(url, { ...options, signal: ac.signal });
     const text = await res.text();
-    let data = {};
-    try { data = text ? JSON.parse(text) : {}; } catch { data = { ok:false, error: text || "Invalid JSON" }; }
+
+    let data;
+    try {
+      data = text ? JSON.parse(text) : {};
+    } catch {
+      data = { ok: false, error: text || "Invalid JSON" };
+    }
+
     if (!res.ok || data.ok === false) {
-      const msg = data.error || `${res.status} ${res.statusText}`;
+      const msg = data?.error || `${res.status} ${res.statusText}`;
       throw new Error(msg);
     }
     return data;
   } finally {
-    clearTimeout(id);
+    clearTimeout(to);
   }
 }
 
 function encForm(obj) {
   const sp = new URLSearchParams();
-  for (const [k, v] of Object.entries(obj)) sp.append(k, typeof v === "object" ? JSON.stringify(v) : String(v));
+  for (const [k, v] of Object.entries(obj)) {
+    sp.append(k, typeof v === "object" ? JSON.stringify(v) : String(v));
+  }
   return sp.toString();
 }
 
 async function GET(action, params = {}) {
-  const url = withKeyURL({ ...params, action });
+  const url = urlWith({ ...params, action });
   return fetchJSON(url, { method: "GET" });
 }
+
 async function POST(action, body = {}) {
-  const url = withKeyURL();
+  const url = urlWith();
   return fetchJSON(url, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
@@ -56,19 +72,24 @@ async function POST(action, body = {}) {
   });
 }
 
-// super-light local caches for perceived speed
+async function MUTATE(action, payload = {}) {
+  try {
+    return await POST(action, payload);
+  } catch {
+    return await GET(action, { ...payload, action });
+  }
+}
+
 const cache = {
-  get(k){ try { return JSON.parse(localStorage.getItem(k)||"null"); } catch { return null; } },
-  set(k,v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* empty */ } }
+  get(k) { try { return JSON.parse(localStorage.getItem(k) || "null"); } catch { return null; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* empty */ } },
 };
 
 export const api = {
-  // auth
   whoami: (email) => GET("whoami", { email }),
   version: () => GET("version"),
   actions: () => GET("actions"),
 
-  // lists & metadata
   lists: async () => {
     const data = await GET("lists");
     cache.set("f15:lists", data);
@@ -79,13 +100,13 @@ export const api = {
   users: () => GET("users"),
   nextProjectNumber: () => GET("nextProjectNumber"),
 
-  // shifts
+  // shifts/work
   activeShift: () => GET("activeShift"),
   shiftSummary: (email) => GET("shiftSummary", { email }),
-  startShift: () => POST("startShift"),
-  stopShift: () => POST("stopShift"),
+  startShift: () => MUTATE("startShift"),
+  stopShift: () => MUTATE("stopShift"),
 
-  // projects
+  // project details
   projectDetails: async (projectNumber) => {
     const data = await GET("projectDetails", { projectNumber });
     cache.set(`f15:project:${projectNumber}`, data);
@@ -93,17 +114,15 @@ export const api = {
   },
   projectDetailsCached: (projectNumber) => cache.get(`f15:project:${projectNumber}`),
 
-  addProject: (payload) => POST("addProject", payload),
-  updateProject: (payload) => POST("updateProject", payload),
+  // projects & tasks
+  addProject: (payload) => MUTATE("addProject", payload),
+  updateProject: (payload) => MUTATE("updateProject", payload),
+  addTask: (payload) => MUTATE("addTask", payload),
+  updateTask: (payload) => MUTATE("updateTask", payload),
 
-  // tasks
-  addTask: (payload) => POST("addTask", payload),
-  updateTask: (payload) => POST("updateTask", payload),
-
-  // reports
+  // insights
   timelog: (params) => GET("timelog", params),
   report: (params) => GET("report", params),
 
-  // health
   ping: () => GET("ping"),
 };

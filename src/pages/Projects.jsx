@@ -1,4 +1,3 @@
-// src/pages/Projects.jsx
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
 
@@ -13,12 +12,11 @@ export default function Projects({ email }) {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({ name: "", client: "", status: "Active" });
 
-  const [detail, setDetail] = useState(null); // { project, tasks, time }
+  const [detail, setDetail] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [err, setErr] = useState("");
 
-  // show cached lists instantly
   useEffect(()=>{
     const cached = api.listsCached();
     if (cached) {
@@ -68,7 +66,6 @@ export default function Projects({ email }) {
   async function openDetail(number){
     setLoadingDetail(true);
     setErr("");
-    // cached first
     const cached = api.projectDetailsCached(number);
     if (cached) setDetail(cached);
     try {
@@ -78,41 +75,45 @@ export default function Projects({ email }) {
     } catch (e) { setErr(String(e?.message || e)); }
     finally { setLoadingDetail(false); }
   }
-
   function backToList(){ setDetail(null); }
 
   return detail ? (
-    <ProjectDetail detail={detail} users={users} refreshProject={async ()=>{
+    <ProjectDetail detail={detail} users={users} onBack={backToList} refreshProject={async ()=>{
       const d = await api.projectDetails(detail.project.number);
       setDetail(d);
       await load();
-    }} onBack={backToList} />
+    }}/>
   ) : (
     <div className="space-y-4">
       <div className="flex flex-wrap gap-2">
-        <input className="f15-input" placeholder="Search projects…" value={q} onChange={e=>setQ(e.target.value)} />
-        <button className="f15-btn f15-btn--primary" onClick={openModal}>New project</button>
+        <input className="w-full md:w-80 rounded-xl px-3 py-2 border bg-transparent"
+               style={{borderColor:"var(--line)"}} placeholder="Search projects…"
+               value={q} onChange={e=>setQ(e.target.value)} />
+        <button className="px-4 py-2 rounded-xl font-semibold bg-white text-black" onClick={openModal}>New project</button>
       </div>
 
-      <div className="f15-card">
-        <div className="f15-h2 mb-3">Projects <span className="text-neutral-500 text-sm">({filtered.length})</span></div>
+      <div className="rounded-2xl p-5" style={{border:"1px solid var(--line)", background:"var(--surface)"}}>
+        <div className="text-xl font-semibold mb-3">Projects <span className="text-gray-400 text-sm">({filtered.length})</span></div>
         {loading ? (
-          <div className="f15-grid f15-grid-3">
-            {Array.from({length:6}).map((_,i)=><div key={i} className="f15-tile f15-skeleton" />)}
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {Array.from({length:6}).map((_,i)=><div key={i} className="h-28 rounded-xl animate-pulse" style={{background:"var(--surface-2)", border:"1px solid var(--line)"}} />)}
           </div>
         ) : filtered.length===0 ? (
-          <div className="text-neutral-500">No projects yet.</div>
+          <div className="text-gray-400">No projects yet.</div>
         ) : (
-          <div className="f15-grid f15-grid-3">
+          <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-3">
             {filtered.map(p=>(
-              <button key={p.number} className="f15-tile text-left hover:translate-y-[-2px] transition-transform" onClick={()=>openDetail(p.number)}>
+              <button key={p.number}
+                      className="text-left rounded-xl p-4 hover:-translate-y-0.5 transition"
+                      style={{border:"1px solid var(--line)", background:"var(--surface-2)"}}
+                      onClick={()=>openDetail(p.number)}>
                 <div className="flex items-center justify-between">
                   <div className="font-semibold">{p.number}</div>
-                  <span className="f15-badge">{p.status}</span>
+                  <span className="text-xs px-2 py-1 rounded-full" style={{border:"1px solid var(--line)"}}>{p.status}</span>
                 </div>
                 <div className="text-sm mt-1">{p.name}</div>
-                <div className="text-xs text-neutral-500">{p.client || "—"}</div>
-                <div className="text-xs text-neutral-500 mt-2">
+                <div className="text-xs text-gray-400">{p.client || "—"}</div>
+                <div className="text-xs text-gray-500 mt-2">
                   {p.startDate ? `Start: ${new Date(p.startDate).toLocaleDateString()}` : "No start"} · {p.dueDate ? `Due: ${new Date(p.dueDate).toLocaleDateString()}` : "No due"}
                 </div>
               </button>
@@ -122,35 +123,35 @@ export default function Projects({ email }) {
       </div>
 
       {modal && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center p-4">
-          <div className="f15-card w-full max-w-lg space-y-3">
-            <div className="f15-h2">New Project</div>
-            <div className="grid gap-3">
-              <div className="text-xs text-neutral-500">Next number will be <b>{hint || "P - 1000"}</b>.</div>
-              <input className="f15-input" placeholder="Project name" value={form.name}
-                     onChange={e=>setForm(f=>({ ...f, name: e.target.value }))}/>
-              <input className="f15-input" placeholder="Client (optional)" value={form.client}
-                     onChange={e=>setForm(f=>({ ...f, client: e.target.value }))}/>
-              <select className="f15-select" value={form.status} onChange={e=>setForm(f=>({ ...f, status: e.target.value }))}>
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center p-4">
+          <div className="w-full max-w-lg rounded-2xl p-5" style={{border:"1px solid var(--line)", background:"var(--surface)"}}>
+            <div className="text-xl font-semibold">New Project</div>
+            <div className="text-xs text-gray-400 mt-1">Next number will be <b>{hint || "P - 1000"}</b>.</div>
+            <div className="grid gap-3 mt-3">
+              <input className="rounded-xl px-3 py-2 border bg-transparent" style={{borderColor:"var(--line)"}}
+                     placeholder="Project name" value={form.name} onChange={e=>setForm(f=>({ ...f, name:e.target.value }))} />
+              <input className="rounded-xl px-3 py-2 border bg-transparent" style={{borderColor:"var(--line)"}}
+                     placeholder="Client (optional)" value={form.client} onChange={e=>setForm(f=>({ ...f, client:e.target.value }))} />
+              <select className="rounded-xl px-3 py-2 border bg-transparent" style={{borderColor:"var(--line)"}}
+                      value={form.status} onChange={e=>setForm(f=>({ ...f, status:e.target.value }))}>
                 {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
-            <div className="flex justify-end gap-2">
-              <button className="f15-btn" onClick={()=>setModal(false)} disabled={saving}>Cancel</button>
-              <button className="f15-btn f15-btn--primary" onClick={submit} disabled={saving}>
+            <div className="flex justify-end gap-2 mt-4">
+              <button className="px-4 py-2 rounded-xl" style={{border:"1px solid var(--line)"}} onClick={()=>setModal(false)} disabled={saving}>Cancel</button>
+              <button className="px-4 py-2 rounded-xl font-semibold bg-white text-black" onClick={submit} disabled={saving}>
                 {saving ? "Creating…" : "Create"}
               </button>
             </div>
           </div>
         </div>
       )}
-      {loadingDetail && <div className="text-neutral-500">Loading…</div>}
+      {loadingDetail && <div className="text-gray-400">Loading…</div>}
       {err && <div className="text-red-500 text-sm">{err}</div>}
     </div>
   );
 }
 
-/* ========== Project Detail ========== */
 function ProjectDetail({ detail, users, onBack, refreshProject }) {
   const p = detail.project;
   const [edit, setEdit] = useState({ name: p.name, client: p.client, status: p.status, startDate: p.startDate, dueDate: p.dueDate, budgetHours: p.budgetHours, notes: p.notes });
@@ -163,24 +164,20 @@ function ProjectDetail({ detail, users, onBack, refreshProject }) {
     try { await api.updateProject({ number: p.number, ...edit }); await refreshProject(); }
     catch (e){ setErr(String(e?.message || e)); }
   }
-
   async function quickAddTask(e){
     e.preventDefault();
     const name = newTask.trim();
     if(!name) return;
     setErr("");
     setAdding(true);
-
-    // optimistic
     try {
-      setNewTask("");
       await api.addTask({ projectNumber: p.number, taskName: name });
+      setNewTask("");
       await refreshProject();
     } catch (e) {
       setErr(`Add failed: ${String(e?.message || e)}`);
     } finally { setAdding(false); }
   }
-
   async function changeAssignee(task, email){
     setErr("");
     try { await api.updateTask({ id: task.id, assigneeEmail: email }); await refreshProject(); }
@@ -193,80 +190,94 @@ function ProjectDetail({ detail, users, onBack, refreshProject }) {
   }
   async function changeProgress(task, progress){
     setErr("");
-    try { await api.updateTask({ id: task.id, progress }); await refreshProject(); }
+    try { await api.updateTask({ id: task.id, progress: Math.max(0, Math.min(100, Number(progress||0))) }); await refreshProject(); }
     catch (e){ setErr(String(e?.message || e)); }
   }
 
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <button className="f15-btn" onClick={onBack}>← Back</button>
-        <div className="f15-h2">{p.number}</div>
+        <button className="px-3 py-1.5 rounded-lg hover:bg-white/10" onClick={onBack}>← Back</button>
+        <div className="text-xl font-semibold">{p.number}</div>
       </div>
 
-      <div className="f15-card grid md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <label className="f15-label">Name</label>
-          <input className="f15-input" value={edit.name} onChange={e=>setEdit(v=>({...v, name:e.target.value}))}/>
-          <label className="f15-label">Client</label>
-          <input className="f15-input" value={edit.client} onChange={e=>setEdit(v=>({...v, client:e.target.value}))}/>
-          <label className="f15-label">Status</label>
-          <select className="f15-select" value={edit.status} onChange={e=>setEdit(v=>({...v, status:e.target.value}))}>
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="rounded-2xl p-5" style={{border:"1px solid var(--line)", background:"var(--surface)"}}>
+          <label className="text-xs text-gray-400">Name</label>
+          <input className="mt-1 w-full rounded-xl px-3 py-2 border bg-transparent" style={{borderColor:"var(--line)"}}
+                 value={edit.name} onChange={e=>setEdit(v=>({...v, name:e.target.value}))}/>
+          <label className="text-xs text-gray-400 mt-3 block">Client</label>
+          <input className="mt-1 w-full rounded-xl px-3 py-2 border bg-transparent" style={{borderColor:"var(--line)"}}
+                 value={edit.client} onChange={e=>setEdit(v=>({...v, client:e.target.value}))}/>
+          <label className="text-xs text-gray-400 mt-3 block">Status</label>
+          <select className="mt-1 w-full rounded-xl px-3 py-2 border bg-transparent" style={{borderColor:"var(--line)"}}
+                  value={edit.status} onChange={e=>setEdit(v=>({...v, status:e.target.value}))}>
             {["Planning","Active","On Hold","Done"].map(s=><option key={s} value={s}>{s}</option>)}
           </select>
         </div>
-        <div className="space-y-2">
-          <label className="f15-label">Start</label>
-          <input className="f15-input" type="date" value={edit.startDate || ""} onChange={e=>setEdit(v=>({...v, startDate:e.target.value}))}/>
-          <label className="f15-label">Due</label>
-          <input className="f15-input" type="date" value={edit.dueDate || ""} onChange={e=>setEdit(v=>({...v, dueDate:e.target.value}))}/>
-          <label className="f15-label">Budget (hours)</label>
-          <input className="f15-input" type="number" value={edit.budgetHours || 0} onChange={e=>setEdit(v=>({...v, budgetHours: Number(e.target.value||0)}))}/>
+
+        <div className="rounded-2xl p-5" style={{border:"1px solid var(--line)", background:"var(--surface)"}}>
+          <label className="text-xs text-gray-400">Start</label>
+          <input type="date" className="mt-1 w-full rounded-xl px-3 py-2 border bg-transparent" style={{borderColor:"var(--line)"}}
+                 value={edit.startDate || ""} onChange={e=>setEdit(v=>({...v, startDate:e.target.value}))}/>
+          <label className="text-xs text-gray-400 mt-3 block">Due</label>
+          <input type="date" className="mt-1 w-full rounded-xl px-3 py-2 border bg-transparent" style={{borderColor:"var(--line)"}}
+                 value={edit.dueDate || ""} onChange={e=>setEdit(v=>({...v, dueDate:e.target.value}))}/>
+          <label className="text-xs text-gray-400 mt-3 block">Budget (hours)</label>
+          <input type="number" className="mt-1 w-full rounded-xl px-3 py-2 border bg-transparent" style={{borderColor:"var(--line)"}}
+                 value={edit.budgetHours || 0} onChange={e=>setEdit(v=>({...v, budgetHours:Number(e.target.value||0)}))}/>
         </div>
-        <div className="md:col-span-2">
-          <label className="f15-label">Notes</label>
-          <textarea className="f15-input" rows={3} value={edit.notes} onChange={e=>setEdit(v=>({...v, notes:e.target.value}))}/>
-        </div>
-        <div className="md:col-span-2 flex justify-end">
-          <button className="f15-btn f15-btn--primary" onClick={saveMeta}>Save changes</button>
+
+        <div className="rounded-2xl p-5 md:col-span-2" style={{border:"1px solid var(--line)", background:"var(--surface)"}}>
+          <label className="text-xs text-gray-400">Notes</label>
+          <textarea rows={3} className="mt-1 w-full rounded-xl px-3 py-2 border bg-transparent" style={{borderColor:"var(--line)"}}
+                    value={edit.notes} onChange={e=>setEdit(v=>({...v, notes:e.target.value}))}/>
+          <div className="flex justify-end mt-3">
+            <button className="px-4 py-2 rounded-xl font-semibold bg-white text-black" onClick={saveMeta}>Save changes</button>
+          </div>
+          {err && <div className="text-red-500 text-sm mt-2">{err}</div>}
         </div>
       </div>
 
       <div className="grid lg:grid-cols-3 gap-4">
-        <div className="f15-card lg:col-span-2">
-          <div className="f15-h2 mb-2">Tasks</div>
+        <div className="rounded-2xl p-5 lg:col-span-2" style={{border:"1px solid var(--line)", background:"var(--surface)"}}>
+          <div className="text-xl font-semibold mb-3">Tasks</div>
           <form onSubmit={quickAddTask} className="flex gap-2 mb-3">
-            <input className="f15-input" placeholder="• Add a task and press Enter" value={newTask}
-                   onChange={e=>setNewTask(e.target.value)} />
-            <button className="f15-btn f15-btn--blue" disabled={adding}>{adding ? "Adding…" : "Add"}</button>
+            <input className="flex-1 rounded-xl px-3 py-2 border bg-transparent" style={{borderColor:"var(--line)"}}
+                   placeholder="• Add a task and press Enter" value={newTask} onChange={e=>setNewTask(e.target.value)} />
+            <button className="px-4 py-2 rounded-xl font-semibold bg-white text-black" disabled={adding}>
+              {adding ? "Adding…" : "Add"}
+            </button>
           </form>
 
           <div className="space-y-2">
             {detail.tasks.length === 0 ? (
-              <div className="text-neutral-500 text-sm">No tasks yet.</div>
+              <div className="text-gray-400 text-sm">No tasks yet.</div>
             ) : detail.tasks.map(t => (
-              <div key={t.id} className="f15-tile">
+              <div key={t.id} className="rounded-xl p-4" style={{border:"1px solid var(--line)", background:"var(--surface-2)"}}>
                 <div className="text-sm font-medium">{t.name}</div>
-                <div className="text-xs text-neutral-500 mt-1 flex gap-4 items-center flex-wrap">
+                <div className="text-xs text-gray-400 mt-1 flex gap-4 items-center flex-wrap">
                   <div className="flex items-center gap-1">
                     <span>Assignee:</span>
-                    <select className="f15-select" value={t.assignee || ""} onChange={e=>changeAssignee(t, e.target.value)}>
+                    <select className="rounded-lg px-2 py-1 border bg-transparent text-sm" style={{borderColor:"var(--line)"}}
+                            value={t.assignee || ""} onChange={e=>changeAssignee(t, e.target.value)}>
                       <option value="">Unassigned</option>
                       {users.map(u => <option key={u.email} value={u.email}>{u.name || u.email}</option>)}
                     </select>
                   </div>
                   <div className="flex items-center gap-1">
                     <span>Due:</span>
-                    <input className="f15-input" type="date" value={t.dueISO || ""} onChange={e=>changeDue(t, e.target.value)} />
+                    <input type="date" className="rounded-lg px-2 py-1 border bg-transparent text-sm" style={{borderColor:"var(--line)"}}
+                           value={t.dueISO || ""} onChange={e=>changeDue(t, e.target.value)} />
                   </div>
                   <div className="flex items-center gap-1">
                     <span>Progress:</span>
-                    <input className="f15-input" type="number" min="0" max="100" value={t.progress}
-                           onChange={e=>changeProgress(t, Math.max(0, Math.min(100, Number(e.target.value||0))))} style={{width:90}}/>
+                    <input type="number" min="0" max="100" className="rounded-lg px-2 py-1 border bg-transparent text-sm w-20" style={{borderColor:"var(--line)"}}
+                           value={t.progress} onChange={e=>changeProgress(t, e.target.value)} />
                     <span>%</span>
                   </div>
                   <div className="ml-auto">
-                    <span className="f15-badge">
+                    <span className="text-xs px-2 py-1 rounded-full" style={{border:"1px solid var(--line)"}}>
                       {(detail.time.byTask.find(x=>x.task===t.name)?.hours || 0).toFixed(2)} h
                     </span>
                   </div>
@@ -274,17 +285,16 @@ function ProjectDetail({ detail, users, onBack, refreshProject }) {
               </div>
             ))}
           </div>
-          {err && <div className="text-red-500 text-sm mt-2">{err}</div>}
         </div>
 
-        <div className="f15-card">
-          <div className="f15-h2 mb-2">People · hours</div>
+        <div className="rounded-2xl p-5" style={{border:"1px solid var(--line)", background:"var(--surface)"}}>
+          <div className="text-xl font-semibold mb-2">People · hours</div>
           {detail.time.byUser.length === 0 ? (
-            <div className="text-neutral-500 text-sm">No time logged yet.</div>
+            <div className="text-gray-400 text-sm">No time logged yet.</div>
           ) : (
             <div className="space-y-2">
               {detail.time.byUser.map(u=>(
-                <div key={u.user} className="flex items-center justify-between border-b border-[var(--line)] pb-2">
+                <div key={u.user} className="flex items-center justify-between border-b pb-2" style={{borderColor:"var(--line)"}}>
                   <div className="text-sm">{u.user}</div>
                   <div className="text-sm font-semibold">{u.hours.toFixed(2)} h</div>
                 </div>
@@ -294,8 +304,8 @@ function ProjectDetail({ detail, users, onBack, refreshProject }) {
         </div>
       </div>
 
-      <div className="f15-card">
-        <div className="f15-h2 mb-2">Calendar</div>
+      <div className="rounded-2xl p-5" style={{border:"1px solid var(--line)", background:"var(--surface)"}}>
+        <div className="text-xl font-semibold mb-2">Calendar (next 2 weeks)</div>
         <MiniCalendar start={p.startDate} due={p.dueDate} tasks={detail.tasks} />
       </div>
     </div>
@@ -320,9 +330,9 @@ function MiniCalendar({ start, due, tasks }) {
         const items = dueByDay.get(k)||[];
         const inRange = (!s || d>=s) && (!e || d<=e);
         return (
-          <div key={k} className="f15-tile">
-            <div className="text-xs text-neutral-500">{fmt(d)}</div>
-            {inRange ? null : <div className="text-[10px] text-neutral-500 mt-1">outside project</div>}
+          <div key={k} className="rounded-xl p-3" style={{border:"1px solid var(--line)", background:"var(--surface-2)"}}>
+            <div className="text-xs text-gray-400">{fmt(d)}</div>
+            {!inRange && <div className="text-[10px] text-gray-500 mt-1">outside project</div>}
             {items.length>0 && (
               <ul className="mt-2 text-xs list-disc pl-4">
                 {items.map((t,i)=><li key={i}>{t}</li>)}

@@ -1,76 +1,37 @@
 @import "tailwindcss";
 
-/* Theme */
 :root {
-  --bg: #ffffff;
-  --surface: #ffffff;
-  --text: #0a0a0a;
-  --muted: #6b7280;      /* neutral-500 */
-  --line: #e5e7eb;       /* neutral-200 */
-  --blue: #2563eb;       /* blue-600 */
-  --blue-700: #1d4ed8;
-  --red: #ef4444;        /* red-500 */
-  --red-600: #dc2626;
+  --bg: #0b0b0f;
+  --surface: #121216;
+  --surface-2: #17171d;
+  --text: #e5e7eb;
+  --muted: #9ca3af;
+  --line: #23232d;
+  --blue: #3b82f6;   /* blue-500 */
+  --red: #ef4444;    /* red-500 */
 }
 
 html, body, #root { height: 100%; }
-body { margin: 0; background: var(--bg); color: var(--text); font-feature-settings: "ss01" 1, "cv01" 1; }
-
-/* Containers */
-.f15-card { @apply rounded-2xl shadow-lg border p-5 bg-white; border-color: var(--line); }
-.f15-hero {
-  @apply rounded-2xl border p-6 flex flex-col md:flex-row md:items-center md:justify-between gap-4;
-  background:
-    radial-gradient(1200px 300px at -10% -30%, rgba(37,99,235,0.08), transparent 60%),
-    radial-gradient(1200px 300px at 110% 130%, rgba(239,68,68,0.08), transparent 60%),
-    var(--surface);
-  border-color: var(--line);
+body {
+  margin: 0;
+  color: var(--text);
+  background: radial-gradient(1200px 400px at -10% -10%, rgba(59,130,246,0.10), transparent 60%),
+              radial-gradient(1000px 300px at 120% 120%, rgba(239,68,68,0.08), transparent 60%),
+              var(--bg);
+  font-feature-settings: "ss01" 1, "cv01" 1;
 }
-.f15-tile { @apply rounded-xl border p-4 bg-white transition; border-color: var(--line); }
-.f15-tile:hover { @apply shadow-md; transform: translateY(-1px); }
 
-/* Buttons */
-.f15-btn  { @apply inline-flex items-center justify-center rounded-xl px-4 py-2 transition border text-sm; border-color: var(--line); }
-.f15-btn:hover { @apply bg-neutral-50; }
-.f15-btn--primary { background: var(--text); color: white; border-color: #0a0a0a; }
-.f15-btn--primary:hover { background: #111111; }
-.f15-btn--blue { background: var(--blue); color: white; border-color: var(--blue); }
-.f15-btn--blue:hover { background: var(--blue-700); border-color: var(--blue-700); }
-.f15-btn--danger { color: var(--red-600); border-color: var(--red); background: #fff0f0; }
-.f15-badge { @apply text-xs px-2 py-1 rounded-full border; border-color: var(--line); }
-
-/* Inputs */
-.f15-input, .f15-select, textarea.f15-input {
-  @apply w-full px-3 py-2 rounded-xl border bg-white outline-none transition text-sm;
-  border-color: var(--line);
+/* subtle patterned overlay */
+body::before {
+  content: "";
+  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  background-image:
+    radial-gradient(circle at 25% 10%, rgba(255,255,255,0.025) 0, rgba(255,255,255,0.0) 55%),
+    linear-gradient(0deg, rgba(255,255,255,0.02), rgba(255,255,255,0.02));
+  mix-blend-mode: screen;
 }
-.f15-input:focus, .f15-select:focus, textarea.f15-input:focus { @apply ring-2 ring-neutral-200; box-shadow: none; }
-.f15-select { appearance: none; background-image: url('data:image/svg+xml;utf8,<svg fill="none" stroke="%236b7280" stroke-width="2" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path d="M6 9l6 6 6-6"/></svg>'); background-repeat: no-repeat; background-position: right .7rem center; background-size: 1rem; padding-right: 2rem; }
-.f15-label { @apply text-xs text-neutral-500; }
 
-/* Text */
-.f15-h1 { @apply text-3xl font-bold tracking-tight; }
-.f15-h2 { @apply text-xl font-semibold; }
-
-/* Grid helpers */
-.f15-grid { @apply grid gap-4; }
-@media (min-width: 768px) { .f15-grid-2 { grid-template-columns: 1fr 1fr; } }
-@media (min-width: 1024px) { .f15-grid-3 { grid-template-columns: 1fr 1fr 1fr; } }
-
-/* KPI */
-.f15-kpi { @apply relative overflow-hidden; }
-.f15-kpi::after {
-  content:""; position:absolute; inset:0;
-  background: radial-gradient(500px 120px at 120% -20%, rgba(37,99,235,0.07), transparent 60%);
-  pointer-events:none;
-}
-.f15-kpi-value { @apply text-3xl font-bold mt-1; }
-
-/* Skeletons */
-@keyframes f15-shimmer { 0%{background-position:-200% 0} 100%{background-position:200% 0} }
-.f15-skeleton {
-  background: linear-gradient(90deg, #f5f5f5 25%, #eeeeee 37%, #f5f5f5 63%);
-  background-size: 400% 100%;
-  animation: f15-shimmer 1.4s ease-in-out infinite;
-  min-height: 96px;
+/* helper class for thin separators */
+.hr-line {
+  border-top: 1px solid var(--line);
 }
