@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from "react";
+// src/pages/Work.jsx
+import { useCallback, useEffect, useState } from "react";
 import { api } from "../lib/api";
 
 export default function Work({ email }) {
@@ -9,6 +10,7 @@ export default function Work({ email }) {
   const [err, setErr] = useState("");
 
   const refresh = useCallback(async () => {
+    if (!email) return;
     setErr("");
     try {
       const s = await api.shiftSummary(email);
@@ -20,19 +22,34 @@ export default function Work({ email }) {
     }
   }, [email]);
 
-  useEffect(() => { if (email) refresh(); }, [email, refresh]);
+  useEffect(() => {
+    if (email) refresh();
+  }, [email, refresh]);
 
   async function start() {
-    setBusy(true); setErr("");
-    try { await api.startShift(); await refresh(); }
-    catch (e) { setErr(String(e?.message || e)); }
-    finally { setBusy(false); }
+    setBusy(true);
+    setErr("");
+    try {
+      await api.startShift();
+      await refresh();
+    } catch (e) {
+      setErr(String(e?.message || e));
+    } finally {
+      setBusy(false);
+    }
   }
+
   async function stop() {
-    setBusy(true); setErr("");
-    try { await api.stopShift(); await refresh(); }
-    catch (e) { setErr(String(e?.message || e)); }
-    finally { setBusy(false); }
+    setBusy(true);
+    setErr("");
+    try {
+      await api.stopShift();
+      await refresh();
+    } catch (e) {
+      setErr(String(e?.message || e));
+    } finally {
+      setBusy(false);
+    }
   }
 
   return (
@@ -45,12 +62,16 @@ export default function Work({ email }) {
               <div className="text-sm text-neutral-400">Clocked in</div>
               <div className="text-lg">{new Date(active.inISO).toLocaleTimeString()}</div>
             </div>
-            <button className="f15-btn f15-btn--danger" onClick={stop} disabled={busy}>Clock out</button>
+            <button className="f15-btn f15-btn--danger" onClick={stop} disabled={busy}>
+              Clock out
+            </button>
           </div>
         ) : (
           <div className="flex items-center justify-between">
             <div className="text-sm text-neutral-400">Not on the clock</div>
-            <button className="f15-btn f15-btn--blue" onClick={start} disabled={busy}>Clock in</button>
+            <button className="f15-btn f15-btn--blue" onClick={start} disabled={busy}>
+              Clock in
+            </button>
           </div>
         )}
         {err && <div className="text-red-500 text-sm mt-3">{err}</div>}
@@ -70,7 +91,7 @@ export default function Work({ email }) {
       <div className="f15-card">
         <div className="f15-h2 mb-2">How to track tasks</div>
         <p className="text-sm text-neutral-400">
-          Clock in/out tracks your workday. Time on individual tasks is computed automatically when you work on them (via task sessions) or by logging against tasks (coming next). For now, task totals are aggregated from the Time Log.
+          Clock in/out tracks your workday. Time on individual tasks is computed from the Time Log and task sessions. We’ll add direct “log to task” soon.
         </p>
       </div>
     </div>

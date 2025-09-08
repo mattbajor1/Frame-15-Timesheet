@@ -22,22 +22,14 @@ export default function Shell({ page, setPage, onEmail, children }) {
     setError("");
     const em = (new FormData(e.target).get("email") || "").toString().trim().toLowerCase();
     if (!em) { setError("Enter your work email"); return; }
-
     try {
       const who = await api.whoami(em);
-      if (!who.allowed) {
-        setError(`Only @${who.allowedDomain} accounts are allowed.`);
-        return;
-      }
-      const user = { email: em };
-      localStorage.setItem("f15:user", JSON.stringify(user));
+      if (!who.allowed) { setError(`Only @${who.allowedDomain} accounts are allowed.`); return; }
+      localStorage.setItem("f15:user", JSON.stringify({ email: em }));
       setEmail(em);
       onEmail?.(em);
-    } catch (err) {
-      setError(String(err?.message || err));
-    }
+    } catch (err) { setError(String(err?.message || err)); }
   }
-
   function signOut() {
     localStorage.removeItem("f15:user");
     setEmail("");
@@ -55,18 +47,19 @@ export default function Shell({ page, setPage, onEmail, children }) {
 
   return (
     <div className="min-h-dvh bg-[var(--bg)] text-[var(--text)]">
+      {/* Top bar */}
       <div className="sticky top-0 z-10 border-b bg-[var(--surface)]">
         <div className="mx-auto max-w-6xl px-4 py-3 flex items-center gap-3">
           <div className="font-bold">Frame-15 Internal</div>
           <div className="ml-2 flex items-center gap-2">
-            <NavButton id="work" label="Work" />
+            <NavButton id="home" label="Home" />
             <NavButton id="projects" label="Projects" />
             <NavButton id="insights" label="Insights" />
           </div>
           <div className="ml-auto flex items-center gap-2">
             {email ? (
               <>
-                <span className="text-sm text-neutral-600">{email}</span>
+                <span className="text-sm text-neutral-400">{email}</span>
                 <button className="f15-btn" onClick={signOut}>Sign out</button>
               </>
             ) : null}
@@ -74,16 +67,17 @@ export default function Shell({ page, setPage, onEmail, children }) {
         </div>
       </div>
 
+      {/* Content */}
       <div className="mx-auto max-w-6xl px-4 py-6">
         {email ? children : (
           <div className="f15-card max-w-md mx-auto">
             <div className="text-xl font-semibold mb-2">Sign in</div>
-            <p className="text-sm text-neutral-600 mb-4">Use your work email (@frame15.com).</p>
+            <p className="text-sm text-neutral-400 mb-4">Use your work email (@frame15.com).</p>
             <form onSubmit={signIn} className="grid gap-3">
               <input className="f15-input" name="email" type="email" placeholder="you@frame15.com" />
               <button className="f15-btn f15-btn--primary" type="submit">Continue</button>
             </form>
-            {error && <div className="text-red-600 text-sm mt-3">{error}</div>}
+            {error && <div className="text-red-500 text-sm mt-3">{error}</div>}
           </div>
         )}
       </div>

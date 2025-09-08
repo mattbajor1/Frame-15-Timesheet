@@ -1,44 +1,53 @@
+// src/pages/Insights.jsx
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, ResponsiveContainer } from "recharts";
 
-export default function Insights(){
+export default function Insights({ email }) {
   const [data, setData] = useState(null);
-  useEffect(()=>{ (async()=>{ const r = await api.report(); setData(r); })(); }, []);
-  if(!data) return <div>Loading…</div>;
+  const [err, setErr] = useState("");
+
+  useEffect(()=>{
+    async function run(){
+      setErr("");
+      try {
+        const to = new Date();
+        const from = new Date(); from.setDate(to.getDate() - 7);
+        const r = await api.report({ fromISO: from.toISOString(), toISO: to.toISOString(), email });
+        setData(r);
+      } catch (e) { setErr(String(e?.message || e)); }
+    }
+    if (email) run();
+  }, [email]);
+
+  if (err) return <div className="text-red-500 text-sm">{err}</div>;
+  if (!data) return <div className="text-neutral-400">Loading…</div>;
 
   return (
-    <div className="space-y-6">
-      <div className="f15-h1">Insights</div>
-
+    <div className="space-y-4">
       <div className="f15-card">
-        <div className="f15-h2 mb-1">This week</div>
-        <div className="text-sm text-neutral-600">Starting {new Date(data.fromISO).toLocaleDateString()} — Total {data.totalHours}h</div>
-        <div className="grid md:grid-cols-2 gap-6 mt-4">
-          <div className="h-80">
-            <div className="font-semibold mb-2">By Project</div>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.hoursByProject}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="projectNumber" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="hours" fill="#2563eb" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="h-80">
-            <div className="font-semibold mb-2">By User</div>
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={data.hoursByUser}>
-                <CartesianGrid strokeDasharray="3 3" />
-                <XAxis dataKey="user" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="hours" fill="#ef4444" />
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
+        <div className="f15-h2">This week</div>
+        <div className="text-3xl font-bold mt-2">{data.totalHours.toFixed(2)} h</div>
+      </div>
+      <div className="grid md:grid-cols-2 gap-4">
+        <div className="f15-card">
+          <div className="f15-h2 mb-2">By project</div>
+          {data.hoursByProject.length===0 ? <div className="text-neutral-400 text-sm">No time yet.</div> :
+            <ul className="text-sm space-y-1">{data.hoursByProject.map(p=>(
+              <li key={p.projectNumber} className="flex items-center justify-between">
+                <span>{p.projectNumber}</span><b>{p.hours.toFixed(2)} h</b>
+              </li>
+            ))}</ul>
+          }
+        </div>
+        <div className="f15-card">
+          <div className="f15-h2 mb-2">By person</div>
+          {data.hoursByUser.length===0 ? <div className="text-neutral-400 text-sm">No time yet.</div> :
+            <ul className="text-sm space-y-1">{data.hoursByUser.map(u=>(
+              <li key={u.user} className="flex items-center justify-between">
+                <span>{u.user}</span><b>{u.hours.toFixed(2)} h</b>
+              </li>
+            ))}</ul>
+          }
         </div>
       </div>
     </div>

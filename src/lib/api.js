@@ -43,13 +43,15 @@ async function POST(action, body = {}) {
 export const api = {
   // auth
   whoami: (email) => GET("whoami", { email }),
+  version: () => GET("version"),
+  actions: () => GET("actions"),
 
   // lists & metadata
   lists: () => GET("lists"),
   users: () => GET("users"),
   nextProjectNumber: () => GET("nextProjectNumber"),
 
-  // shifts
+  // shifts (home)
   activeShift: () => GET("activeShift"),
   shiftSummary: (email) => GET("shiftSummary", { email }),
   startShift: () => POST("startShift"),
@@ -64,7 +66,7 @@ export const api = {
   addTask: (payload) => POST("addTask", payload),
   updateTask: (payload) => POST("updateTask", payload),
 
-  // time & reports (legacy / insights)
+  // reports
   timelog: (params) => GET("timelog", params),
   report: (params) => GET("report", params),
 
