@@ -5,7 +5,7 @@ import Work from "./pages/Work";
 import Insights from "./pages/Insights";
 import ShiftProvider from "./providers/ShiftProvider.jsx";
 import { useShift } from "./contexts/ShiftContext.js";
-import logo from "./assets/frame15-internal-logo.webp";
+import logo from "./assets/f15_internal.png";
 
 function Nav({ page, setPage, email, onLogout }) {
   const { active } = useShift();
