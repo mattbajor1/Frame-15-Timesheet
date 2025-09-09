@@ -45,12 +45,7 @@ export default function Home({ setPage }) {
         }}
       >
         <div className="flex items-center gap-4">
-          <img
-            src={logo}
-            alt="Frame 15 Internal"
-            className="h-12 w-auto object-contain"
-            style={{ filter: "drop-shadow(0 10px 20px rgba(0,0,0,.35))" }}
-          />
+          <img src={logo} alt="Frame 15 Internal" className="h-16 md:h-20 w-auto object-contain" />
           <div>
             <div className="text-blue-300/90 text-sm">Frame-15 Internal</div>
             <h1 className="text-2xl md:text-3xl font-bold">Everything in one frame.</h1>

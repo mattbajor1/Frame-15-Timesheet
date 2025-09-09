@@ -1,3 +1,4 @@
+// src/App.jsx
 import { useEffect, useState } from "react";
 import Home from "./pages/Home";
 import Projects from "./pages/Projects";
@@ -13,7 +14,7 @@ function Nav({ page, setPage, email, onLogout }) {
     <div className="sticky top-0 z-10 backdrop-blur-md" style={{background:"rgba(11,11,15,0.6)", borderBottom:"1px solid var(--line)"}}>
       <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
         <div className="flex items-center gap-2">
-          <img src={logo} alt="Frame 15 Internal" className="h-7 md:h-8" />
+          <img src={logo} alt="Frame 15 Internal" className="h-10 md:h-12 w-auto object-contain" />
         </div>
         <div className="flex-1" />
         <nav className="flex gap-2 text-sm">
@@ -37,7 +38,7 @@ export default function App() {
   const [email, setEmail] = useState("");
 
   useEffect(() => {
-    try { const u = JSON.parse(localStorage.getItem("f15:user") || "{}"); if (u?.email) setEmail(u.email); } catch { /* empty */ }
+    try { const u = JSON.parse(localStorage.getItem("f15:user") || "{}"); if (u?.email) setEmail(u.email); } catch { /* ignore parse errors */ }
   }, []);
   function login(e) {
     e.preventDefault();
@@ -54,7 +55,7 @@ export default function App() {
         <div className="w-full max-w-md rounded-2xl border" style={{borderColor:"var(--line)", background:"var(--surface)"}}>
           <div className="p-6">
             <div className="flex items-center gap-3">
-              <img src={logo} alt="Frame 15 Internal" className="h-8" />
+              <img src={logo} alt="Frame 15 Internal" className="h-12 w-auto object-contain" />
               <div className="text-sm text-blue-400">Frame-15 Internal</div>
             </div>
             <h1 className="text-2xl font-bold mt-3">Sign in</h1>
@@ -74,10 +75,10 @@ export default function App() {
       <div className="min-h-screen relative">
         <Nav page={page} setPage={setPage} email={email} onLogout={logout} />
         <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-          {page==="home"     && <Home email={email} setPage={setPage} />}
+          {page==="home"     && <Home setPage={setPage} />}
           {page==="projects" && <Projects email={email} />}
-          {page==="work"     && <Work email={email} />}
-          {page==="insights" && <Insights email={email} />}
+          {page==="work"     && <Work />}
+          {page==="insights" && <Insights />}
         </main>
       </div>
     </ShiftProvider>
