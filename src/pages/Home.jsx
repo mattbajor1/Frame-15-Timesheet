@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
-import logo from "../assets/frame15-internal-logo.webp";
+import logo from "../assets/f15_internal.png";
 import BreathingBackdrop from "../components/BreathingBackdrop.jsx";
 
 const greetings = [
