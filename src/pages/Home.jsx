@@ -1,7 +1,7 @@
 // src/pages/Home.jsx
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
-import logo from "../assets/frame15-internal-logo.webp";
+import logo from "../assets/f15_internal.png";
 
 const greetings = [
   "Let’s build something great today.",
