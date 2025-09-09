@@ -1,7 +1,7 @@
+// src/pages/Home.jsx
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
-import logo from "../assets/f15_internal.png";
-import BreathingBackdrop from "../components/BreathingBackdrop.jsx";
+import logo from "../assets/frame15-internal-logo.webp";
 
 const greetings = [
   "Let’s build something great today.",
@@ -36,25 +36,37 @@ export default function Home({ setPage }) {
 
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-2xl p-6"
-           style={{ border: "1px solid var(--line)", background: "linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02))" }}>
-        <BreathingBackdrop />
-
-        {/* PROMINENT LOGO ROW */}
-        <div className="relative z-10 flex items-center gap-3">
-          <img src={logo} alt="Frame 15 Internal" className="h-10 w-auto drop-shadow" />
-          <div className="text-sm text-blue-300/90">Frame-15 Internal</div>
-        </div>
-
-        <div className="relative z-10 mt-2">
-          <h1 className="text-3xl font-bold">Everything in one frame.</h1>
-          <p className="text-gray-300 mt-1">{greet}</p>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            <button onClick={()=>setPage("projects")} className="px-4 py-2 rounded-xl font-semibold bg-white text-black">Manage Projects</button>
-            <button onClick={()=>setPage("work")} className="px-4 py-2 rounded-xl font-semibold" style={{ border: "1px solid var(--line)" }}>Open Work</button>
-            <button onClick={()=>setPage("insights")} className="px-4 py-2 rounded-xl font-semibold" style={{ border: "1px solid var(--line)" }}>View Insights</button>
+      {/* LOGO-ONLY HERO */}
+      <div
+        className="relative overflow-hidden rounded-2xl p-8 flex items-center justify-between"
+        style={{
+          border: "1px solid var(--line)",
+          background: "var(--surface)",
+        }}
+      >
+        <div className="flex items-center gap-4">
+          <img
+            src={logo}
+            alt="Frame 15 Internal"
+            className="h-12 w-auto object-contain"
+            style={{ filter: "drop-shadow(0 10px 20px rgba(0,0,0,.35))" }}
+          />
+          <div>
+            <div className="text-blue-300/90 text-sm">Frame-15 Internal</div>
+            <h1 className="text-2xl md:text-3xl font-bold">Everything in one frame.</h1>
+            <p className="text-gray-300 mt-1">{greet}</p>
           </div>
+        </div>
+        <div className="hidden md:flex gap-2">
+          <button onClick={()=>setPage("projects")} className="px-4 py-2 rounded-xl font-semibold bg-white text-black">
+            Manage Projects
+          </button>
+          <button onClick={()=>setPage("work")} className="px-4 py-2 rounded-xl font-semibold" style={{ border: "1px solid var(--line)" }}>
+            Open Work
+          </button>
+          <button onClick={()=>setPage("insights")} className="px-4 py-2 rounded-xl font-semibold" style={{ border: "1px solid var(--line)" }}>
+            View Insights
+          </button>
         </div>
       </div>
 
@@ -74,7 +86,7 @@ export default function Home({ setPage }) {
         </div>
       </div>
 
-      {/* tiles */}
+      {/* Active projects */}
       <div className="rounded-2xl p-5" style={{ border: "1px solid var(--line)", background: "var(--surface)" }}>
         <div className="flex items-center justify-between mb-3">
           <div className="text-xl font-semibold">Active projects</div>

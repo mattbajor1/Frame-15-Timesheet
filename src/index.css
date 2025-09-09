@@ -1,37 +1,68 @@
 @import "tailwindcss";
 
+/* ==== Theme tokens (dark) ==== */
 :root {
-  --bg: #0b0b0f;
-  --surface: #121216;
-  --surface-2: #17171d;
-  --text: #e5e7eb;
-  --muted: #9ca3af;
-  --line: #23232d;
-  --blue: #3b82f6;   /* blue-500 */
-  --red: #ef4444;    /* red-500 */
+  --bg: #0b0b0f;          /* page background */
+  --surface: #111218;     /* cards / panels */
+  --surface-2: #0f0f14;   /* secondary surface */
+  --text: #e9eaf0;
+  --muted: #9aa0af;
+  --line: rgba(255, 255, 255, 0.08);
+  --blue: #3b82f6;
+  --red: #ef4444;
 }
 
+/* ==== Global layout & background ==== */
 html, body, #root { height: 100%; }
 body {
   margin: 0;
   color: var(--text);
-  background: radial-gradient(1200px 400px at -10% -10%, rgba(59,130,246,0.10), transparent 60%),
-              radial-gradient(1000px 300px at 120% 120%, rgba(239,68,68,0.08), transparent 60%),
-              var(--bg);
-  font-feature-settings: "ss01" 1, "cv01" 1;
-}
+  background-color: var(--bg);
 
-/* subtle patterned overlay */
-body::before {
-  content: "";
-  position: fixed; inset: 0; pointer-events: none; z-index: 0;
+  /* Layer 1: faint blue glow (top-left) */
+  /* Layer 2: faint red glow (bottom-right) */
+  /* Layer 3: subtle dot grid */
   background-image:
-    radial-gradient(circle at 25% 10%, rgba(255,255,255,0.025) 0, rgba(255,255,255,0.0) 55%),
-    linear-gradient(0deg, rgba(255,255,255,0.02), rgba(255,255,255,0.02));
-  mix-blend-mode: screen;
+    radial-gradient(1200px 900px at -10% -20%, rgba(59,130,246,0.10), transparent 70%),
+    radial-gradient(1200px 900px at 110% 120%, rgba(239,68,68,0.10), transparent 70%),
+    radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1.3px);
+  background-size:
+    auto,
+    auto,
+    22px 22px;
+  background-position:
+    center,
+    center,
+    0 0;
+  background-attachment:
+    fixed,
+    fixed,
+    fixed; /* stays put on scroll */
 }
 
-/* helper class for thin separators */
-.hr-line {
-  border-top: 1px solid var(--line);
+/* Optional: nicer focus ring for inputs/buttons */
+:focus-visible {
+  outline: 2px solid rgba(59,130,246,0.6);
+  outline-offset: 2px;
+  border-radius: 8px;
 }
+
+/* ==== Handy primitives (used by existing pages) ==== */
+.f15-card { border: 1px solid var(--line); background: var(--surface); border-radius: 16px; padding: 20px; }
+.f15-surface2 { border: 1px solid var(--line); background: var(--surface-2); border-radius: 16px; }
+
+.f15-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 12px; padding: 8px 14px; border: 1px solid var(--line);
+  background: transparent; color: var(--text);
+}
+.f15-btn:hover { background: rgba(255,255,255,0.04); }
+.f15-btn--primary { background: #fff; color: #000; border-color: #fff; }
+.f15-badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
+
+/* Inputs */
+.f15-input, .f15-select, .f15-textarea {
+  width: 100%; background: transparent; color: var(--text);
+  border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px;
+}
+.f15-textarea { resize: vertical; }
