@@ -57,8 +57,16 @@ async function httpGet(action, params = {}) {
 
 async function httpPost(action, body = {}) {
   assertEnv();
-  const email = body.email ?? getEmail();
-  const payload = new URLSearchParams(email ? { ...body, email } : body);
+  // Build a form body that ALWAYS includes action + key, and inject email if not present
+  const params = { ...(body || {}) };
+  if (!("email" in params)) {
+    const email = getEmail();
+    if (email) params.email = email;
+  }
+  params.action = action;
+  params.key = KEY;
+
+  const payload = new URLSearchParams(params);
 
   const r = await fetch(BASE, {
     method: "POST",
