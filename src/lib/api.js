@@ -4,7 +4,7 @@
 const BASE = import.meta.env.VITE_API_URL;
 const KEY  = import.meta.env.VITE_API_KEY;
 
-// Optional: pull saved user email for endpoints that default to current user
+// Pull saved user email for endpoints that default to current user
 function getEmail() {
   try {
     const u = JSON.parse(localStorage.getItem("f15:user") || "{}");
@@ -38,15 +38,16 @@ function listsCacheGet() {
 function listsCacheSet(value) {
   try {
     localStorage.setItem(LISTS_CACHE_KEY, JSON.stringify(value));
-  } catch {
-    // intentionally ignore cache set errors
-  }
+  } catch { /* empty */ }
 }
 
-// ===== HTTP helpers =====
+// ===== HTTP helpers (auto-inject email) =====
 async function httpGet(action, params = {}) {
   assertEnv();
-  const q = qs({ action, key: KEY, ...params });
+  const email = params.email ?? getEmail();
+  const withEmail = email ? { ...params, email } : params;
+  const q = qs({ action, key: KEY, ...withEmail });
+
   const r = await fetch(`${BASE}?${q}`, { method: "GET", credentials: "omit" });
   if (!r.ok) throw new Error(`GET ${action} ${r.status}`);
   const j = await r.json().catch(() => ({}));
@@ -56,11 +57,13 @@ async function httpGet(action, params = {}) {
 
 async function httpPost(action, body = {}) {
   assertEnv();
-  const form = new URLSearchParams({ action, key: KEY, ...body });
+  const email = body.email ?? getEmail();
+  const payload = new URLSearchParams(email ? { ...body, email } : body);
+
   const r = await fetch(BASE, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-    body: form.toString(),
+    body: payload.toString(),
     credentials: "omit",
   });
   if (!r.ok) throw new Error(`POST ${action} ${r.status}`);
@@ -108,14 +111,14 @@ export const api = {
   // Timers & Logs (Work / Insights)
   async timers() { return await httpGet("timers"); },
   async activeTimer() { return await httpGet("activetimer"); },
-  async startTimer(o) { return await httpPost("starttimer", o); },   // expect: { projectNumber, task, billable, label? }
-  async stopTimer(o) { return await httpPost("stoptimer", o); },     // expect: { id } or {} for active
-  async timeLog(params = {}) { return await httpGet("timelog", params); }, // e.g., { weekStart: 'YYYY-MM-DD', email? }
+  async startTimer(o) { return await httpPost("starttimer", o); },   // expects: { projectNumber, task, billable, label? }
+  async stopTimer(o) { return await httpPost("stoptimer", o); },     // expects: { id } or {} for active
+  async timeLog(params = {}) { return await httpGet("timelog", params); }, // e.g., { weekStart, email? }
 
   // Dashboards / Analytics
   async summary(params = {}) { return await httpGet("summary", params); }, // e.g., { weekStart }
-  async report(params = {}) { return await httpGet("report", params); },   // arbitrary filters
-  async punch(o = {}) { return await httpPost("punch", o); },              // if used by dashboard
+  async report(params = {}) { return await httpGet("report", params); },
+  async punch(o = {}) { return await httpPost("punch", o); },
   async startShift(o = {}) { return await httpPost("startshift", o); },
   async stopShift(o = {}) { return await httpPost("stopshift", o); },
   async shiftSummary(params = {}) { return await httpGet("shiftsummary", params); },
