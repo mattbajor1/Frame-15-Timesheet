@@ -1,3 +1,4 @@
+// src/pages/Invoices.jsx
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api.js";
 
@@ -29,12 +30,9 @@ export default function Invoices() {
     setErrorMsg("");
     setLoading(true);
     setPreview(null);
-
     try {
       if (!api?.buildInvoice) {
-        throw new Error(
-          "api.buildInvoice(projectNumber) is not implemented. Add it in src/lib/api.js."
-        );
+        throw new Error("api.buildInvoice(projectNumber) is missing in src/lib/api.js");
       }
       const data = await api.buildInvoice(pn);
       setPreview(data ?? { ok: true, note: "No data returned from API." });
@@ -47,7 +45,6 @@ export default function Invoices() {
   }
 
   useEffect(() => {
-    // Load any existing invoices for the typed project
     refreshList();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pn]);
@@ -56,7 +53,6 @@ export default function Invoices() {
     <div style={{ padding: 16, display: "grid", gap: 12 }}>
       <h2 style={{ fontSize: 20, fontWeight: 800, margin: 0 }}>Invoices</h2>
 
-      {/* Project Number Input */}
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
         <label htmlFor="pn" style={{ fontWeight: 600, minWidth: 140 }}>
           Project Number
@@ -90,7 +86,6 @@ export default function Invoices() {
         </button>
       </div>
 
-      {/* Errors */}
       {errorMsg && (
         <div
           role="alert"
@@ -106,7 +101,6 @@ export default function Invoices() {
         </div>
       )}
 
-      {/* Preview */}
       {preview && (
         <section
           aria-label="Invoice Preview"
@@ -124,7 +118,6 @@ export default function Invoices() {
         </section>
       )}
 
-      {/* Existing Invoices */}
       <section
         aria-label="Existing Invoices"
         style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12 }}
@@ -164,7 +157,6 @@ export default function Invoices() {
         )}
       </section>
 
-      {/* Footnote if API missing */}
       {!api?.buildInvoice && (
         <div style={{ color: "#6b7280", fontSize: 13 }}>
           <em>Note:</em> Expected <code>api.buildInvoice(projectNumber)</code> is missing. Add it

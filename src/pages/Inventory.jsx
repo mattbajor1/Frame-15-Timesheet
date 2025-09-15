@@ -2,93 +2,218 @@
 import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api.js";
 
-export default function InventoryPage(){
-  const [items,setItems]=useState([]);
-  const [err,setErr]=useState("");
-  const [form,setForm]=useState({category:"Cameras", name:"", sku:"", condition:"Good", qtyTotal:1, qtyAvail:1, dailyRate:0, notes:""});
+export default function InventoryPage() {
+  const [items, setItems] = useState([]);
+  const [err, setErr] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const load = async ()=>{
+  const [form, setForm] = useState({
+    category: "Cameras",
+    name: "",
+    sku: "",
+    condition: "Good",
+    qtyTotal: 1,
+    qtyAvail: 1,
+    dailyRate: 0,
+    notes: "",
+  });
+
+  async function load() {
     setErr("");
-    try{
-      const {items} = await api.listInventory();
-      setItems(items||[]);
-    }catch(e){ setErr(e.message); }
-  };
-  useEffect(()=>{ load(); },[]);
-
-  const grouped = useMemo(()=>{
-    const m=new Map();
-    for(const it of items){
-      const k=it.category||"Other";
-      if(!m.has(k)) m.set(k,[]);
-      m.get(k).push(it);
+    setLoading(true);
+    try {
+      if (!api?.listInventory) {
+        throw new Error("api.listInventory() is not implemented in src/lib/api.js");
+      }
+      const res = await api.listInventory();
+      // Expecting { items: [...] }
+      setItems(Array.isArray(res?.items) ? res.items : []);
+    } catch (e) {
+      console.error(e);
+      setErr(e?.message || "Failed to load inventory");
+      setItems([]);
+    } finally {
+      setLoading(false);
     }
-    return [...m.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
-  },[items]);
+  }
 
-  const addItem = async ()=>{
-    if(!form.name){ alert("Item name required"); return; }
-    try{
+  useEffect(() => {
+    load();
+  }, []);
+
+  const grouped = useMemo(() => {
+    const m = new Map();
+    for (const it of items) {
+      const cat = it.category || "Uncategorized";
+      if (!m.has(cat)) m.set(cat, []);
+      m.get(cat).push(it);
+    }
+    return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [items]);
+
+  async function addItem() {
+    if (!form.name) {
+      alert("Item name required");
+      return;
+    }
+    try {
+      if (!api?.addInventory) {
+        throw new Error("api.addInventory(form) is not implemented in src/lib/api.js");
+      }
       await api.addInventory(form);
-      setForm({category:form.category, name:"", sku:"", condition:"Good", qtyTotal:1, qtyAvail:1, dailyRate:0, notes:""});
+      setForm({
+        category: form.category,
+        name: "",
+        sku: "",
+        condition: "Good",
+        qtyTotal: 1,
+        qtyAvail: 1,
+        dailyRate: 0,
+        notes: "",
+      });
       await load();
-    }catch(e){ alert(e.message); }
-  };
+    } catch (e) {
+      console.error(e);
+      alert(e?.message || "Failed to add item");
+    }
+  }
 
   return (
     <div className="grid gap-6">
-      <div className="card section-gold">
+      <div className="card">
         <div className="flex items-center justify-between">
-          <div><div className="badge badge-gold">Inventory</div><div className="mt-1 text-sm text-gray-400">Studio equipment & supplies</div></div>
-          <button className="btn no-print" onClick={load}>Refresh</button>
+          <h2 className="h2">Inventory</h2>
+          <button className="btn" onClick={load} disabled={loading}>
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
+        {err && (
+          <div className="mt-2" style={{ color: "#b91c1c", fontWeight: 600 }}>
+            {err}
+          </div>
+        )}
+      </div>
+
+      <div className="card">
+        <h3 className="h3">Add Item</h3>
+        <div className="grid" style={{ gap: 8, maxWidth: 720 }}>
+          <div className="row">
+            <label style={{ minWidth: 140 }}>Category</label>
+            <input
+              value={form.category}
+              onChange={(e) => setForm((f) => ({ ...f, category: e.target.value }))}
+              placeholder="Category"
+            />
+          </div>
+          <div className="row">
+            <label style={{ minWidth: 140 }}>Name</label>
+            <input
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="Item name"
+            />
+          </div>
+          <div className="row">
+            <label style={{ minWidth: 140 }}>SKU</label>
+            <input
+              value={form.sku}
+              onChange={(e) => setForm((f) => ({ ...f, sku: e.target.value }))}
+              placeholder="SKU"
+            />
+          </div>
+          <div className="row">
+            <label style={{ minWidth: 140 }}>Condition</label>
+            <input
+              value={form.condition}
+              onChange={(e) => setForm((f) => ({ ...f, condition: e.target.value }))}
+              placeholder="Condition"
+            />
+          </div>
+          <div className="row">
+            <label style={{ minWidth: 140 }}>Qty Total</label>
+            <input
+              type="number"
+              value={form.qtyTotal}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, qtyTotal: Number(e.target.value) || 0 }))
+              }
+            />
+          </div>
+          <div className="row">
+            <label style={{ minWidth: 140 }}>Qty Available</label>
+            <input
+              type="number"
+              value={form.qtyAvail}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, qtyAvail: Number(e.target.value) || 0 }))
+              }
+            />
+          </div>
+          <div className="row">
+            <label style={{ minWidth: 140 }}>Daily Rate</label>
+            <input
+              type="number"
+              value={form.dailyRate}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, dailyRate: Number(e.target.value) || 0 }))
+              }
+            />
+          </div>
+          <div className="row">
+            <label style={{ minWidth: 140 }}>Notes</label>
+            <input
+              value={form.notes}
+              onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))}
+              placeholder="Notes"
+            />
+          </div>
+
+          <div>
+            <button className="btn primary" onClick={addItem} disabled={loading}>
+              Add
+            </button>
+          </div>
         </div>
       </div>
 
       <div className="card">
-        <div className="font-semibold mb-2">Add Item</div>
-        <div className="grid gap-3" style={{gridTemplateColumns:"repeat(6,minmax(0,1fr))"}}>
-          <select className="input" value={form.category} onChange={e=>setForm(v=>({...v,category:e.target.value}))}>
-            {["Cameras","Lenses","Lighting","Audio","Grip & Support","Production Accessories","Post-Production","Vehicles/Transport","Other"].map(c=><option key={c}>{c}</option>)}
-          </select>
-          <input className="input" placeholder="Item name" value={form.name} onChange={e=>setForm(v=>({...v,name:e.target.value}))}/>
-          <input className="input" placeholder="SKU" value={form.sku} onChange={e=>setForm(v=>({...v,sku:e.target.value}))}/>
-          <input className="input" placeholder="Condition" value={form.condition} onChange={e=>setForm(v=>({...v,condition:e.target.value}))}/>
-          <input className="input" type="number" min="0" placeholder="Qty total" value={form.qtyTotal} onChange={e=>setForm(v=>({...v,qtyTotal:Number(e.target.value)}))}/>
-          <input className="input" type="number" min="0" placeholder="Qty avail" value={form.qtyAvail} onChange={e=>setForm(v=>({...v,qtyAvail:Number(e.target.value)}))}/>
-          <input className="input" type="number" min="0" step="0.01" placeholder="Daily rate" value={form.dailyRate} onChange={e=>setForm(v=>({...v,dailyRate:Number(e.target.value)}))}/>
-          <input className="input" style={{gridColumn:"span 4"}} placeholder="Notes" value={form.notes} onChange={e=>setForm(v=>({...v,notes:e.target.value}))}/>
-          <div className="no-print" style={{gridColumn:"span 1"}}><button className="btn btn-primary" onClick={addItem}>Add</button></div>
-        </div>
+        <h3 className="h3">Items</h3>
+        {grouped.length === 0 ? (
+          <div className="muted">No items yet.</div>
+        ) : (
+          grouped.map(([cat, arr]) => (
+            <div key={cat} className="mb-4">
+              <div className="h4">{cat}</div>
+              <table className="table">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>SKU</th>
+                    <th>Condition</th>
+                    <th>Total</th>
+                    <th>Available</th>
+                    <th>Daily Rate</th>
+                    <th>Notes</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {arr.map((it, i) => (
+                    <tr key={it.id ?? `${cat}-${i}`}>
+                      <td>{it.name}</td>
+                      <td>{it.sku}</td>
+                      <td>{it.condition}</td>
+                      <td>{it.qtyTotal}</td>
+                      <td>{it.qtyAvail}</td>
+                      <td>{Number(it.dailyRate || 0).toFixed(2)}</td>
+                      <td>{it.notes}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))
+        )}
       </div>
-
-      {grouped.map(([cat, arr])=>(
-        <div key={cat} className="card section-blue">
-          <div className="flex items-center justify-between mb-2">
-            <div className="font-semibold">{cat}</div>
-            <div className="text-sm text-gray-400">{arr.length} item(s)</div>
-          </div>
-          <table className="table">
-            <thead><tr><th>Name</th><th>SKU</th><th>Qty</th><th>Daily</th><th>Status</th></tr></thead>
-            <tbody>
-              {arr.map(it=>(
-                <tr key={it.itemId}>
-                  <td>{it.name}</td>
-                  <td className="text-gray-400">{it.sku||"—"}</td>
-                  <td>{it.qtyAvail}/{it.qtyTotal}</td>
-                  <td>${Number(it.dailyRate||0).toFixed(2)}</td>
-                  <td>
-                    {it.inUseToday && <span className="badge badge-orange">In Use</span>}
-                    {!it.inUseToday && <span className="badge badge-green">Available</span>}
-                    {it.nextBooking && <span className="badge badge-blue" style={{marginLeft:8}}>Next: {it.nextBooking}</span>}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ))}
-
-      {err && <div className="card" style={{borderColor:"rgba(239,68,68,.35)", borderWidth:1}}>{err}</div>}
     </div>
   );
 }
