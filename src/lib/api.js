@@ -90,7 +90,7 @@ export const api = {
   listsCached() { return listsCacheGet(); },
   async lists() {
     const j = await httpGet("lists");
-    try { listsCacheSet(j); } catch { /* ignore cache errors */ }
+    try { listsCacheSet(j); } catch { /* empty */ }
     return j;
   },
   async users() {
@@ -110,18 +110,25 @@ export const api = {
 
   // Timers & Logs (Work / Insights)
   async timers() { return await httpGet("timers"); },
-  async activeTimer() { return await httpGet("activetimer"); },
-  async startTimer(o) { return await httpPost("starttimer", o); },   // expects: { projectNumber, task, billable, label? }
-  async stopTimer(o) { return await httpPost("stoptimer", o); },     // expects: { id } or {} for active
-  async timeLog(params = {}) { return await httpGet("timelog", params); }, // e.g., { weekStart, email? }
+  async activeTimer() { return await httpGet("activetimer"); }, // optional helper
+  async startTimer(o) { return await httpPost("starttimer", o); },   // supports { projectNumber, taskName|task|name, billable, label? }
+  async stopTimer(o) { return await httpPost("stoptimer", o); },     // expects { id }
+  async timeLog(paramsOrLimit = {}) {
+    const params = (typeof paramsOrLimit === 'number')
+      ? { limit: paramsOrLimit }
+      : (paramsOrLimit || {});
+    return await httpGet("timelog", params);
+  },
 
-  // Dashboards / Analytics
-  async summary(params = {}) { return await httpGet("summary", params); }, // e.g., { weekStart }
-  async report(params = {}) { return await httpGet("report", params); },
-  async punch(o = {}) { return await httpPost("punch", o); },
+  // Shifts / summary
   async startShift(o = {}) { return await httpPost("startshift", o); },
   async stopShift(o = {}) { return await httpPost("stopshift", o); },
+  async punch(o = {}) { return await httpPost("punch", o); }, // toggle in/out
+  async summary(params = {}) { return await httpGet("summary", params); },   // maps to shiftsummary
   async shiftSummary(params = {}) { return await httpGet("shiftsummary", params); },
+
+  // Analytics / reports
+  async report(params = {}) { return await httpGet("report", params); },
 
   // Inventory
   async listInventory() { return await httpGet("listinventory"); },
