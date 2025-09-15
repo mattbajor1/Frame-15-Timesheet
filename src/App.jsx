@@ -1,69 +1,56 @@
-// src/App.jsx
 import { useEffect, useState } from "react";
-import Home from "./pages/Home";
-import Projects from "./pages/Projects";
-import Work from "./pages/Work";
-import Insights from "./pages/Insights";
-import ShiftProvider from "./providers/ShiftProvider.jsx";
-import { useShift } from "./contexts/ShiftContext.js";
-import logo from "./assets/f15_internal.png";
+import Home from "./pages/Home.jsx";
+import Projects from "./pages/Projects.jsx";
+import Work from "./pages/Work.jsx";
+import Insights from "./pages/Insights.jsx";
+import Inventory from "./pages/Inventory.jsx";
+import Invoices from "./pages/Invoices.jsx";
+import "./index.css";
+import { api } from "./lib/api.js";
 
-function Nav({ page, setPage, email, onLogout }) {
-  const { active } = useShift();
-  return (
-    <div className="sticky top-0 z-10 backdrop-blur-md" style={{background:"rgba(11,11,15,0.6)", borderBottom:"1px solid var(--line)"}}>
-      <div className="max-w-6xl mx-auto px-4 py-3 flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <img src={logo} alt="Frame 15 Internal" className="h-10 md:h-12 w-auto object-contain" />
-        </div>
-        <div className="flex-1" />
-        <nav className="flex gap-2 text-sm">
-          {["home","projects","work","insights"].map(p => (
-            <button key={p} onClick={()=>setPage(p)} className={`px-3 py-1.5 rounded-lg ${page===p?"bg-white text-black":"hover:bg-white/10"}`}>{p[0].toUpperCase()+p.slice(1)}</button>
-          ))}
-        </nav>
-        <div className="flex-1" />
-        <div className="flex items-center gap-3 text-sm text-gray-300">
-          {active ? <span className="inline-flex items-center gap-1 text-green-400">● <span className="hidden sm:inline">Clocked in</span></span> : <span className="text-gray-400 hidden sm:inline">Not clocked in</span>}
-          <span className="text-gray-400">{email}</span>
-          <button onClick={onLogout} className="px-2 py-1 rounded-md hover:bg-white/10">Log out</button>
-        </div>
-      </div>
-    </div>
-  );
+function useLocalState(key, initial){
+  const [v,setV] = useState(()=>{
+    try{ const j = localStorage.getItem(key); return j?JSON.parse(j):initial; }catch{return initial;}
+  });
+  useEffect(()=>{ localStorage.setItem(key, JSON.stringify(v)); }, [key,v]);
+  return [v,setV];
 }
 
-export default function App() {
-  const [page, setPage] = useState("home");
-  const [email, setEmail] = useState("");
+export default function App(){
+  const [page, setPage] = useLocalState("f15:page","home");
+  const [user,setUser]   = useLocalState("f15:user",{ email:"", name:"", role:"" });
+  const [err,setErr] = useState("");
 
-  useEffect(() => {
-    try { const u = JSON.parse(localStorage.getItem("f15:user") || "{}"); if (u?.email) setEmail(u.email); } catch { /* ignore parse errors */ }
-  }, []);
-  function login(e) {
-    e.preventDefault();
-    const em = new FormData(e.currentTarget).get("email")?.toString().trim() || "";
-    if (!/@frame15\.com$/i.test(em)) { alert("Use your @frame15.com email"); return; }
-    localStorage.setItem("f15:user", JSON.stringify({ email: em }));
-    setEmail(em);
-  }
-  function logout(){ localStorage.removeItem("f15:user"); setEmail(""); }
+  useEffect(()=>{
+    (async ()=>{
+      if(!import.meta.env.VITE_API_URL){ setErr("Missing VITE_API_URL"); return; }
+      if(!import.meta.env.VITE_API_KEY){ setErr("Missing VITE_API_KEY"); return; }
+      try{
+        const pong = await api.ping();
+        if(!pong.ok) setErr(pong.error||"Ping failed");
+      }catch(e){ setErr(String(e.message||e)); }
+    })();
+  },[]);
 
-  if (!email) {
+  function Nav(){
+    const tabs = [
+      ["home","Home"],["projects","Projects"],["work","Work"],
+      ["insights","Insights"],["inventory","Inventory"],["invoices","Invoices"]
+    ];
     return (
-      <div className="min-h-screen flex items-center justify-center p-6">
-        <div className="w-full max-w-md rounded-2xl border" style={{borderColor:"var(--line)", background:"var(--surface)"}}>
-          <div className="p-6">
-            <div className="flex items-center gap-3">
-              <img src={logo} alt="Frame 15 Internal" className="h-12 w-auto object-contain" />
-              <div className="text-sm text-blue-400">Frame-15 Internal</div>
-            </div>
-            <h1 className="text-2xl font-bold mt-3">Sign in</h1>
-            <p className="text-sm text-gray-400 mt-1">Only <b>@frame15.com</b> allowed.</p>
-            <form className="mt-4 space-y-3" onSubmit={login}>
-              <input name="email" placeholder="you@frame15.com" className="w-full rounded-xl px-3 py-2 border bg-transparent" style={{borderColor:"var(--line)"}} />
-              <button className="w-full rounded-xl px-4 py-2 font-semibold bg-white text-black">Continue</button>
-            </form>
+      <div className="nav">
+        <div className="container" style={{display:"flex",alignItems:"center",gap:12}}>
+          <div style={{fontWeight:700, letterSpacing:.6}}>Frame 15 • Internal</div>
+          <div style={{flex:1}} />
+          <div className="tabs" style={{display:"flex",gap:6}}>
+            {tabs.map(([k,label])=> (
+              <button key={k} onClick={()=>setPage(k)} className={k===page?"active":""}>{label}</button>
+            ))}
+          </div>
+          <div style={{flex:1}} />
+          <div className="row" style={{maxWidth:420}}>
+            <input placeholder="your@email" value={user.email||""} onChange={e=>setUser({...user,email:e.target.value})} />
+            <button className="btn primary" onClick={()=>localStorage.setItem("f15:user", JSON.stringify(user))}>Save</button>
           </div>
         </div>
       </div>
@@ -71,16 +58,17 @@ export default function App() {
   }
 
   return (
-    <ShiftProvider email={email}>
-      <div className="min-h-screen relative">
-        <Nav page={page} setPage={setPage} email={email} onLogout={logout} />
-        <main className="max-w-6xl mx-auto px-4 py-6 space-y-6">
-          {page==="home"     && <Home setPage={setPage} />}
-          {page==="projects" && <Projects email={email} />}
-          {page==="work"     && <Work />}
-          {page==="insights" && <Insights />}
-        </main>
+    <div>
+      <Nav />
+      <div className="container">
+        {err && <div className="card" style={{borderColor:"#b91c1c"}}><b>Connection error</b><div className="muted">{err}</div></div>}
+        {page==="home" && <Home />}
+        {page==="projects" && <Projects />}
+        {page==="work" && <Work />}
+        {page==="insights" && <Insights />}
+        {page==="inventory" && <Inventory />}
+        {page==="invoices" && <Invoices />}
       </div>
-    </ShiftProvider>
+    </div>
   );
 }

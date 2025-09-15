@@ -2,65 +2,81 @@
 const BASE = import.meta.env.VITE_API_URL;
 const KEY  = import.meta.env.VITE_API_KEY;
 
-function email() {
+function getEmail() {
   try {
     const u = JSON.parse(localStorage.getItem("f15:user") || "{}");
     return u?.email || "";
   } catch { return ""; }
 }
 
-function q(params) {
+function qs(params) {
   const u = new URLSearchParams(params);
   return u.toString();
 }
 
-async function get(action, params = {}) {
-  const url = `${BASE}?${q({ action, key: KEY, email: email(), ...params })}`;
-  const r = await fetch(url, { method: "GET" });
+async function httpGet(action, params={}){
+  const email = params.email || getEmail();
+  const url = `${BASE}?${qs({action, key:KEY, email, ...params})}`;
+  const r = await fetch(url, { method:"GET", credentials:"omit" });
+  if(!r.ok) throw new Error(`GET ${action} ${r.status}`);
   const j = await r.json();
-  if (!r.ok || j.ok === false) throw new Error(j.error || r.statusText);
+  if(j.ok===false) throw new Error(j.error || `GET ${action} failed`);
   return j;
 }
-async function post(action, body = {}) {
-  const r = await fetch(`${BASE}`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ action, key: KEY, email: email(), ...body }),
+
+async function httpPost(action, body={}){
+  const email = body.email || getEmail();
+  const form = new URLSearchParams({ action, key:KEY, email, ...body });
+  const r = await fetch(BASE, {
+    method:"POST",
+    headers: { "Content-Type":"application/x-www-form-urlencoded;charset=UTF-8" }, // avoids CORS preflight
+    body: form.toString(),
+    credentials:"omit"
   });
+  if(!r.ok) throw new Error(`POST ${action} ${r.status}`);
   const j = await r.json();
-  if (!r.ok || j.ok === false) throw new Error(j.error || r.statusText);
+  if(j.ok===false) throw new Error(j.error || `POST ${action} failed`);
   return j;
 }
 
-/* cache */
-const CACHE_KEY = "f15:lists";
 export const api = {
-  listsCached() {
-    try { return JSON.parse(localStorage.getItem(CACHE_KEY) || "null"); } catch { return null; }
+  async ping(){ try{ const j = await httpGet("ping"); return j; }catch(e){ return {ok:false, error:String(e.message||e)}; } },
+  async version(){ return await httpGet("version"); },
+  async whoami(email){ return await httpGet("whoami", { email: email || getEmail() }); },
+
+  async lists(){ return await httpGet("lists"); },
+  async users(){ const j = await httpGet("users"); return j.users || []; },
+  async nextProjectNumber(){ return await httpGet("nextprojectnumber"); },
+  async projectDetails(projectNumber){ return await httpGet("projectdetails", { projectNumber }); },
+
+  async addProject(p){ return await httpPost("addproject", p); },
+  async updateProject(p){ return await httpPost("updateproject", p); },
+
+  async addTask(t){ return await httpPost("addtask", t); },
+  async updateTask(t){ return await httpPost("updatetask", t); },
+
+  async shiftSummary(email){ return await httpGet("shiftsummary", { email: email || getEmail() }); },
+  async startShift(){ return await httpPost("startshift"); },
+  async stopShift(){ return await httpPost("stopshift"); },
+
+  async timers(){ const j = await httpGet("timers"); return j.timers || []; },
+  async timeLog(limit=20){ const j = await httpGet("timelog", { limit }); return j.logs || []; },
+  async startTimer({ projectNumber="", taskName="", label="", billable=false, color="" } = {}){
+    return await httpPost("starttimer", { projectNumber, taskName, label, billable, color });
   },
-  async lists() {
-    const j = await get("lists");
-    localStorage.setItem(CACHE_KEY, JSON.stringify(j));
-    return j;
-  },
-  async nextProjectNumber() { return await get("nextprojectnumber"); },
-  async projectDetails(projectNumber) { return await get("projectdetails", { projectNumber }); },
+  async stopTimer(id){ return await httpPost("stoptimer", { id }); },
 
-  async addProject(p) { return await post("addproject", p); },
-  async updateProject(p) { return await post("updateproject", p); },
+  // Inventory
+  async listInventory(){ return await httpGet("listinventory"); },
+  async addInventory(item){ return await httpPost("addinventory", item); },
+  async updateInventory(item){ return await httpPost("updateinventory", item); },
+  async projectEquipment(projectNumber){ return await httpGet("projectequipment", { projectNumber }); },
+  async assignEquipment(o){ return await httpPost("assignequipment", o); },
+  async removeEquipment(id){ return await httpPost("removeequipment", { id }); },
 
-  async addTask(t) { return await post("addtask", t); },
-  async updateTask(t) { return await post("updatetask", t); },
-
-  async shiftSummary(emailAddr) { return await get("shiftsummary", { email: emailAddr || email() }); },
-  async startShift() { return await post("startshift"); },
-  async stopShift() { return await post("stopshift"); },
-
-  // NEW: task timers
-  async timers() { const j = await get("timers"); return j.timers || []; },
-  async timeLog(limit = 20) { const j = await get("timelog", { limit }); return j.logs || []; },
-  async startTimer({ projectNumber = "", taskName = "", label = "", billable = false } = {}) {
-    return await post("starttimer", { projectNumber, taskName, label, billable });
-  },
-  async stopTimer(id) { return await post("stoptimer", { id }); },
+  // Invoices
+  async buildInvoice(projectNumber){ return await httpGet("buildinvoice", { projectNumber }); },
+  async saveInvoice(projectNumber){ return await httpPost("saveinvoice", { projectNumber }); },
+  async listInvoices(projectNumber){ return await httpGet("listinvoices", { projectNumber }); },
+  async invoice(invoiceId){ return await httpGet("invoice", { invoiceId }); },
 };

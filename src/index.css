@@ -1,68 +1,64 @@
 @import "tailwindcss";
 
-/* ==== Theme tokens (dark) ==== */
-:root {
-  --bg: #0b0b0f;          /* page background */
-  --surface: #111218;     /* cards / panels */
-  --surface-2: #0f0f14;   /* secondary surface */
-  --text: #e9eaf0;
-  --muted: #9aa0af;
-  --line: rgba(255, 255, 255, 0.08);
-  --blue: #3b82f6;
+/* retro-modern accent layer */
+:root{
+  --bg: #0a0a0c;
+  --card: #0f0f14;
+  --muted: #a1a1aa;
+  --ring: rgba(255,255,255,0.08);
+
+  --gold: #f0b429;
   --red: #ef4444;
+  --orange: #f59e0b;
+  --green: #10b981;
+  --blue: #60a5fa;
 }
 
-/* ==== Global layout & background ==== */
-html, body, #root { height: 100%; }
-body {
-  margin: 0;
-  color: var(--text);
-  background-color: var(--bg);
+html, body { background:#0a0a0c; color:#f5f5f6; }
 
-  /* Layer 1: faint blue glow (top-left) */
-  /* Layer 2: faint red glow (bottom-right) */
-  /* Layer 3: subtle dot grid */
-  background-image:
-    radial-gradient(1200px 900px at -10% -20%, rgba(59,130,246,0.10), transparent 70%),
-    radial-gradient(1200px 900px at 110% 120%, rgba(239,68,68,0.10), transparent 70%),
-    radial-gradient(rgba(255,255,255,0.06) 1px, transparent 1.3px);
-  background-size:
-    auto,
-    auto,
-    22px 22px;
-  background-position:
-    center,
-    center,
-    0 0;
-  background-attachment:
-    fixed,
-    fixed,
-    fixed; /* stays put on scroll */
+body::before, body::after {
+  content:""; position:fixed; inset:0; pointer-events:none; z-index:-1;
+  background:
+    radial-gradient(40rem 40rem at -10% -10%, rgba(96,165,250,0.06), transparent 60%),
+    radial-gradient(32rem 32rem at 110% 110%, rgba(239,68,68,0.05), transparent 60%),
+    radial-gradient(36rem 36rem at 20% 110%, rgba(240,180,41,0.05), transparent 60%);
+  mix-blend-mode: screen;
 }
 
-/* Optional: nicer focus ring for inputs/buttons */
-:focus-visible {
-  outline: 2px solid rgba(59,130,246,0.6);
-  outline-offset: 2px;
-  border-radius: 8px;
+.card {
+  background: var(--card);
+  border: 1px solid var(--ring);
+  border-radius: 16px;
+  padding: 16px;
 }
-
-/* ==== Handy primitives (used by existing pages) ==== */
-.f15-card { border: 1px solid var(--line); background: var(--surface); border-radius: 16px; padding: 20px; }
-.f15-surface2 { border: 1px solid var(--line); background: var(--surface-2); border-radius: 16px; }
-
-.f15-btn {
-  display: inline-flex; align-items: center; justify-content: center;
-  border-radius: 12px; padding: 8px 14px; border: 1px solid var(--line);
-  background: transparent; color: var(--text);
+.btn {
+  display:inline-flex; align-items:center; gap:.5rem; padding:.6rem 1rem;
+  background:#15151b; border:1px solid var(--ring); border-radius:12px;
+  color:#f5f5f6; cursor:pointer; transition:transform .15s ease, box-shadow .15s ease, background .15s ease;
 }
-.f15-btn:hover { background: rgba(255,255,255,0.04); }
-.f15-btn--primary { background: #fff; color: #000; border-color: #fff; }
-.f15-badge { font-size: 12px; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); }
-
-/* Inputs */
-.f15-input, .f15-select, .f15-textarea {
-  width: 100%; background: transparent; color: var(--text);
-  border: 1px solid var(--line); border-radius: 12px; padding: 8px 12px;
+.btn:hover { transform: translateY(-1px); background:#1a1a22; }
+.btn-primary { background:#fff; color:#09090b; }
+.badge { font-size:.75rem; padding:.2rem .5rem; border-radius:999px; border:1px solid var(--ring); }
+.badge-blue { background: rgba(96,165,250,.15); color: var(--blue); border-color: rgba(96,165,250,.35); }
+.badge-green{ background: rgba(16,185,129,.15); color: var(--green); border-color: rgba(16,185,129,.35); }
+.badge-gold { background: rgba(240,180,41,.15); color: var(--gold); border-color: rgba(240,180,41,.35); }
+.input, select, textarea{
+  background:#0c0c12; color:#f5f5f6; border:1px solid var(--ring); border-radius:12px; padding:.55rem .7rem;
 }
-.f15-textarea { resize: vertical; }
+.table { width:100%; border-collapse:collapse; }
+.table th, .table td { padding:.5rem .6rem; border-bottom:1px solid rgba(255,255,255,0.06); }
+.table th { color:#cfcfd6; text-align:left; font-weight:600; }
+.hr { height:1px; background:var(--ring); width:100%; margin:8px 0; }
+
+/* accent borders for sections (color-coded) */
+.section-blue { border-top: 2px solid var(--blue); }
+.section-gold { border-top: 2px solid var(--gold); }
+.section-green{ border-top: 2px solid var(--green); }
+.section-orange{ border-top: 2px solid var(--orange); }
+
+/* print styles for invoice (light) */
+@media print {
+  html, body { background:#fff; color:#000; }
+  .card, .btn { border: none; box-shadow: none; background: #fff; color:#000; }
+  .no-print { display:none !important; }
+}
