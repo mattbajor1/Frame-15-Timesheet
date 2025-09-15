@@ -1,6 +1,6 @@
 // src/pages/Inventory.jsx
 import { useEffect, useMemo, useState } from "react";
-import { api } from "../api";
+import { api } from "../lib/api.js";
 
 export default function InventoryPage(){
   const [items,setItems]=useState([]);
