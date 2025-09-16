@@ -1,7 +1,17 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
+import { supa } from "../lib/db"; // null if you didn't configure Supabase
 
-// Helpers
+// ---------- helpers ----------
+const LS_TASKS = "f15:tasksByProject";
+
+function loadTasksCache() {
+  try { return JSON.parse(localStorage.getItem(LS_TASKS) || "{}"); } catch { return {}; }
+}
+function saveTasksCache(map) {
+  try { localStorage.setItem(LS_TASKS, JSON.stringify(map)); } catch { /* empty */ }
+}
+
 function normalizeProjects(arr) {
   return (arr || []).map((p) => ({
     number: String(p.number || p.projectNumber || "").trim(),
@@ -16,50 +26,75 @@ function normalizeProjects(arr) {
 }
 function normalizeTasks(arr) {
   return (arr || []).map((t) => ({
-    id: t.id,
-    projectNumber: t.projectNumber,
-    taskName: t.taskName || t.name || t.title || "",
-    name: t.taskName || t.name || t.title || "",
-    assignee: t.assigneeEmail || t.assignee || "",
+    id: t.id || t.ID || t.taskId || t.TaskID,
+    projectNumber: t.projectNumber || t.ProjectNumber,
+    taskName: t.taskName || t.name || t.title || t.TaskName || "",
+    name: t.taskName || t.name || t.title || t.TaskName || "",
+    assignee: t.assigneeEmail || t.assignee || t.AssigneeEmail || "",
     priority: t.priority || "Med",
     status: t.status || "Backlog",
     dueISO: t.dueISO || t.dueDate || "",
     progress: Number(t.progress || 0),
-  }));
+  })).filter(t => t.projectNumber && t.name);
+}
+
+// ---------- data layer (Supabase if available, else Apps Script) ----------
+async function fetchProjects() {
+  const j = await api.lists();
+  if (j?.ok === false) throw new Error(j.error || "Failed to load");
+  return normalizeProjects(j.projects || []);
+}
+async function fetchTasksForProject(pn) {
+  if (supa) {
+    const { data, error } = await supa.from("tasks").select("*").eq("project_number", pn).order("created_at", { ascending: false });
+    if (error) throw error;
+    return normalizeTasks(data.map(d => ({
+      id: d.id, projectNumber: d.project_number, taskName: d.task_name,
+      status: d.status, priority: d.priority
+    })));
+  }
+  // Google Sheets fallback
+  const j = await api.projectDetails(pn);
+  if (j?.ok === false) throw new Error(j.error || "Failed to load project");
+  return normalizeTasks(j.tasks || []);
+}
+async function addTaskToProject(pn, text) {
+  if (supa) {
+    const { data, error } = await supa.from("tasks").insert({ project_number: pn, task_name: text }).select().single();
+    if (error) throw error;
+    return normalizeTasks([{
+      id: data.id, projectNumber: data.project_number, taskName: data.task_name,
+      status: data.status, priority: data.priority
+    }])[0];
+  }
+  // Google Sheets fallback
+  const res = await api.addTask({ projectNumber: pn, taskName: text });
+  if (res?.task) return normalizeTasks([res.task])[0];
+  // Older backend: synthesize minimal object
+  return { id: res?.id || `tmp-${Date.now()}`, projectNumber: pn, taskName: text, name: text, status: "Backlog", priority: "Med", progress: 0 };
 }
 
 export default function Projects() {
   const [loading, setLoading] = useState(true);
   const [projects, setProjects] = useState([]);
-  const [tasksByProject, setTasksByProject] = useState({}); // fast initial display
   const [selectedPN, setSelectedPN] = useState("");
-  const [detailsLoading, setDetailsLoading] = useState(false);
-  const [project, setProject] = useState(null);
+  const [projectMeta, setProjectMeta] = useState(null);
   const [tasks, setTasks] = useState([]);
+  const [tasksByProject, setTasksByProject] = useState(loadTasksCache());
   const [taskText, setTaskText] = useState("");
   const [savingTask, setSavingTask] = useState(false);
   const [error, setError] = useState("");
 
-  // Initial load: projects + tasks cache
+  // Initial load: projects; prefill selection and cached tasks
   useEffect(() => {
     let alive = true;
-    async function load() {
+    (async () => {
       setLoading(true);
       setError("");
       try {
-        const j = await api.lists();
-        if (j?.ok === false) throw new Error(j.error || "Failed to load projects");
-        const proj = normalizeProjects(j.projects || []);
-        const tasks = normalizeTasks(j.tasks || []);
-        const grouped = tasks.reduce((acc, t) => {
-          const pn = t.projectNumber || "";
-          (acc[pn] ||= []).push(t);
-          return acc;
-        }, {});
+        const proj = await fetchProjects();
         if (!alive) return;
         setProjects(proj);
-        setTasksByProject(grouped);
-        // Select first project by default
         if (proj.length && !selectedPN) setSelectedPN(proj[0].number);
       } catch (e) {
         if (!alive) return;
@@ -67,41 +102,43 @@ export default function Projects() {
       } finally {
         if (alive) setLoading(false);
       }
-    }
-    load();
+    })();
     return () => { alive = false; };
-  }, [selectedPN]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Whenever selected project changes, fetch fresh details (name/notes/time)
+  // When project selection changes:
   useEffect(() => {
-    if (!selectedPN) { setProject(null); setTasks([]); return; }
+    if (!selectedPN) { setProjectMeta(null); setTasks([]); return; }
     let alive = true;
-    async function loadDetails() {
-      setDetailsLoading(true);
+    (async () => {
       setError("");
+      // Show cached tasks instantly
+      const cached = tasksByProject[selectedPN] || [];
+      setTasks(cached);
       try {
-        const j = await api.projectDetails(selectedPN);
-        if (j?.ok === false) throw new Error(j.error || "Failed to load project");
+        // Fetch live tasks + meta
+        const [freshTasks, details] = await Promise.all([
+          fetchTasksForProject(selectedPN),
+          api.projectDetails(selectedPN).catch(() => null)
+        ]);
         if (!alive) return;
-        setProject(j.project || null);
-        // prefer server tasks; if empty fall back to cached grouping
-        const serverTasks = normalizeTasks(j.tasks || []);
-        setTasks(serverTasks.length ? serverTasks : (tasksByProject[selectedPN] || []));
+        setTasks(freshTasks);
+        const nextMap = { ...tasksByProject, [selectedPN]: freshTasks };
+        setTasksByProject(nextMap);
+        saveTasksCache(nextMap);
+        setProjectMeta(details?.project || { number: selectedPN });
       } catch (e) {
         if (!alive) return;
-        // fall back to cached list if we have it
-        setProject({ number: selectedPN, name: "", client: "", status: "Active", notes: "" });
-        setTasks(tasksByProject[selectedPN] || []);
-        setError(String(e?.message || e));
-      } finally {
-        if (alive) setDetailsLoading(false);
+        // Keep cached tasks; set minimal meta
+        setProjectMeta({ number: selectedPN });
+        setError(prev => prev || String(e?.message || e));
       }
-    }
-    loadDetails();
+    })();
+    return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPN]);
 
-  // Derived for left list filter/sort (optional)
   const sortedProjects = useMemo(() => {
     return [...projects].sort((a, b) => a.number.localeCompare(b.number));
   }, [projects]);
@@ -109,28 +146,25 @@ export default function Projects() {
   async function onAddTask() {
     const text = taskText.trim();
     if (!text || savingTask || !selectedPN) return;
+
+    // 1) Optimistic: show immediately
+    const optimistic = { id: `tmp-${Date.now()}`, projectNumber: selectedPN, taskName: text, name: text, status: "Backlog", priority: "Med", progress: 0, _optimistic: true };
+    setTasks(prev => [optimistic, ...prev]);
+    const map1 = { ...tasksByProject, [selectedPN]: [optimistic, ...(tasksByProject[selectedPN] || [])] };
+    setTasksByProject(map1); saveTasksCache(map1);
+    setTaskText("");
+
+    // 2) Sync to backend
     setSavingTask(true);
     try {
-      const res = await api.addTask({ projectNumber: selectedPN, taskName: text });
-      // echo from server preferred
-      let t = res?.task ? normalizeTasks([res.task])[0] : null;
-      if (!t) {
-        // fallback: refetch (older backend) or synthesize a minimal object
-        try {
-          const j = await api.projectDetails(selectedPN);
-          const fresh = normalizeTasks(j.tasks || []);
-          setTasks(fresh);
-          setTasksByProject(prev => ({ ...prev, [selectedPN]: fresh }));
-        } catch {
-          t = { id: res?.id || `temp-${Date.now()}`, projectNumber: selectedPN, taskName: text, name: text, status: "Backlog", priority: "Med", progress: 0 };
-          setTasks(prev => [t, ...prev]);
-        }
-      } else {
-        setTasks(prev => [t, ...prev]);
-        setTasksByProject(prev => ({ ...prev, [selectedPN]: [t, ...(prev[selectedPN] || [])] }));
-      }
-      setTaskText("");
+      const created = await addTaskToProject(selectedPN, text);
+      // replace optimistic row with real row
+      setTasks(prev => [created, ...prev.filter(t => t.id !== optimistic.id)]);
+      const map2 = { ...map1, [selectedPN]: [created, ...(map1[selectedPN].filter(t => t.id !== optimistic.id))] };
+      setTasksByProject(map2); saveTasksCache(map2);
     } catch (e) {
+      // mark optimistic as failed
+      setTasks(prev => prev.map(t => t.id === optimistic.id ? { ...t, _failed: true } : t));
       alert(`Add task failed: ${e?.message || e}`);
     } finally {
       setSavingTask(false);
@@ -146,13 +180,12 @@ export default function Projects() {
       {!!error && (
         <div className="text-red-400">
           {error}
-          <div className="text-xs opacity-70 mt-1">Make sure you’re signed in and your email domain is allowed.</div>
+          <div className="text-xs opacity-70 mt-1">If you’re using Google Sheets, make sure API key + allowed domain + email are set.</div>
         </div>
       )}
 
-      {/* Two-column layout: list (left) · details (right) */}
       <div className="grid md:grid-cols-2 gap-6">
-        {/* Left: project list */}
+        {/* Left: Project list */}
         <div className="rounded-2xl border border-white/10">
           <div className="p-4 font-medium border-b border-white/10">All projects</div>
           {loading ? (
@@ -182,73 +215,55 @@ export default function Projects() {
           )}
         </div>
 
-        {/* Right: selected project details */}
+        {/* Right: Details + Tasks */}
         <div className="rounded-2xl border border-white/10 p-4">
           {!selectedPN ? (
             <div className="opacity-70">Select a project to view details.</div>
-          ) : detailsLoading && !project ? (
-            <div className="opacity-70">Loading project…</div>
           ) : (
             <>
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <div className="text-xs opacity-60">{project?.number || selectedPN}</div>
-                  <div className="text-xl font-semibold">{project?.name || "(Untitled project)"}</div>
-                  <div className="text-xs opacity-70 mt-1">{project?.client || ""}</div>
+                  <div className="text-xs opacity-60">{projectMeta?.number || selectedPN}</div>
+                  <div className="text-xl font-semibold">{projectMeta?.name || "(Untitled project)"}</div>
+                  <div className="text-xs opacity-70 mt-1">{projectMeta?.client || ""}</div>
                 </div>
-                <div className="opacity-70">{project?.status || "Active"}</div>
+                <div className="opacity-70">{projectMeta?.status || "Active"}</div>
               </div>
 
-              <div className="grid md:grid-cols-2 gap-6">
-                <div>
-                  <div className="font-medium mb-2">Notes</div>
-                  <div className="rounded-lg bg-black/30 border border-white/10 p-3 min-h-[100px] whitespace-pre-wrap">
-                    {project?.notes || "—"}
-                  </div>
-                </div>
-                <div>
-                  <div className="font-medium mb-2">Meta</div>
-                  <div className="text-sm opacity-70">Budget (hrs): {project?.budgetHours || 0}</div>
-                  <div className="text-sm opacity-70">Start: {project?.startDate ? new Date(project.startDate).toLocaleDateString() : "—"}</div>
-                  <div className="text-sm opacity-70">Due: {project?.dueDate ? new Date(project.dueDate).toLocaleDateString() : "—"}</div>
-                </div>
+              <div className="font-medium mb-3">Tasks</div>
+              <div className="flex gap-2 mb-4">
+                <input
+                  className="flex-1 rounded-lg bg-black/30 border border-white/10 px-3 py-2"
+                  placeholder="Add a task and press Enter"
+                  value={taskText}
+                  onChange={(e) => setTaskText(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onAddTask(); } }}
+                />
+                <button
+                  className="rounded-lg px-4 py-2 bg-white text-black disabled:opacity-50"
+                  disabled={savingTask}
+                  onClick={onAddTask}
+                >
+                  Add
+                </button>
               </div>
 
-              <div className="mt-6">
-                <div className="font-medium mb-3">Tasks</div>
-                <div className="flex gap-2 mb-4">
-                  <input
-                    className="flex-1 rounded-lg bg-black/30 border border-white/10 px-3 py-2"
-                    placeholder="Add a task and press Enter"
-                    value={taskText}
-                    onChange={(e) => setTaskText(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); onAddTask(); } }}
-                  />
-                  <button
-                    className="rounded-lg px-4 py-2 bg-white text-black disabled:opacity-50"
-                    disabled={savingTask}
-                    onClick={onAddTask}
-                  >
-                    Add
-                  </button>
-                </div>
-
-                {tasks.length === 0 ? (
-                  <div className="text-sm opacity-70">No tasks yet.</div>
-                ) : (
-                  <ul className="space-y-2">
-                    {tasks.map((t) => (
-                      <li key={t.id} className="rounded-lg border border-white/10 px-3 py-2">
-                        <div className="font-medium">{t.taskName || t.name}</div>
-                        <div className="text-xs opacity-70">
-                          {(t.status || "Backlog") + " · " + (t.priority || "Med")}
-                          {t.dueISO ? ` · due ${new Date(t.dueISO).toLocaleDateString()}` : ""}
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
+              {tasks.length === 0 ? (
+                <div className="text-sm opacity-70">No tasks yet.</div>
+              ) : (
+                <ul className="space-y-2">
+                  {tasks.map((t) => (
+                    <li key={t.id} className={`rounded-lg border px-3 py-2 ${t._failed ? "border-red-500/60" : "border-white/10"}`}>
+                      <div className="font-medium">{t.taskName || t.name}</div>
+                      <div className="text-xs opacity-70">
+                        {(t.status || "Backlog") + " · " + (t.priority || "Med")}
+                        {t._optimistic && " · saving…"}
+                        {t._failed && " · failed to save"}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </>
           )}
         </div>
