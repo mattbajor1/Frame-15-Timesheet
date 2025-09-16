@@ -1,8 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
-import { supa } from "../lib/db"; // null if you didn't configure Supabase
 
-// ---------- helpers ----------
+// ---------- local cache for snappy UX ----------
 const LS_TASKS = "f15:tasksByProject";
 
 function loadTasksCache() {
@@ -12,66 +11,61 @@ function saveTasksCache(map) {
   try { localStorage.setItem(LS_TASKS, JSON.stringify(map)); } catch { /* empty */ }
 }
 
+// ---------- normalizers (tolerant to column names) ----------
 function normalizeProjects(arr) {
-  return (arr || []).map((p) => ({
-    number: String(p.number || p.projectNumber || "").trim(),
-    name: String(p.name || p.projectName || "").trim(),
-    client: String(p.client || "").trim(),
-    status: String(p.status || "Active").trim(),
-    startDate: p.startDate || "",
-    dueDate: p.dueDate || "",
-    budgetHours: Number(p.budgetHours || 0),
-    notes: String(p.notes || ""),
-  })).filter(p => p.number);
+  return (arr || [])
+    .map((p) => ({
+      number: String(p.number || p.projectNumber || "").trim(),
+      name: String(p.name || p.projectName || "").trim(),
+      client: String(p.client || "").trim(),
+      status: String(p.status || "Active").trim(),
+      startDate: p.startDate || "",
+      dueDate: p.dueDate || "",
+      budgetHours: Number(p.budgetHours || 0),
+      notes: String(p.notes || ""),
+    }))
+    .filter((p) => p.number);
 }
 function normalizeTasks(arr) {
-  return (arr || []).map((t) => ({
-    id: t.id || t.ID || t.taskId || t.TaskID,
-    projectNumber: t.projectNumber || t.ProjectNumber,
-    taskName: t.taskName || t.name || t.title || t.TaskName || "",
-    name: t.taskName || t.name || t.title || t.TaskName || "",
-    assignee: t.assigneeEmail || t.assignee || t.AssigneeEmail || "",
-    priority: t.priority || "Med",
-    status: t.status || "Backlog",
-    dueISO: t.dueISO || t.dueDate || "",
-    progress: Number(t.progress || 0),
-  })).filter(t => t.projectNumber && t.name);
+  return (arr || [])
+    .map((t) => ({
+      id: t.id || t.ID || t.taskId || t.TaskID,
+      projectNumber: t.projectNumber || t.ProjectNumber,
+      taskName: t.taskName || t.name || t.title || t.TaskName || "",
+      name: t.taskName || t.name || t.title || t.TaskName || "",
+      assignee: t.assigneeEmail || t.assignee || t.AssigneeEmail || "",
+      priority: t.priority || "Med",
+      status: t.status || "Backlog",
+      dueISO: t.dueISO || t.dueDate || "",
+      progress: Number(t.progress || 0),
+    }))
+    .filter((t) => t.projectNumber && t.name);
 }
 
-// ---------- data layer (Supabase if available, else Apps Script) ----------
+// ---------- pure Apps Script data layer ----------
 async function fetchProjects() {
-  const j = await api.lists();
-  if (j?.ok === false) throw new Error(j.error || "Failed to load");
+  const j = await api.lists();               // { projects, tasks, users, ok:true }
+  if (j?.ok === false) throw new Error(j.error || "Failed to load projects");
   return normalizeProjects(j.projects || []);
 }
 async function fetchTasksForProject(pn) {
-  if (supa) {
-    const { data, error } = await supa.from("tasks").select("*").eq("project_number", pn).order("created_at", { ascending: false });
-    if (error) throw error;
-    return normalizeTasks(data.map(d => ({
-      id: d.id, projectNumber: d.project_number, taskName: d.task_name,
-      status: d.status, priority: d.priority
-    })));
-  }
-  // Google Sheets fallback
-  const j = await api.projectDetails(pn);
-  if (j?.ok === false) throw new Error(j.error || "Failed to load project");
+  const j = await api.projectDetails(pn);    // { ok:true, project, tasks, time }
+  if (j?.ok === false) throw new Error(j.error || "Failed to load tasks");
   return normalizeTasks(j.tasks || []);
 }
 async function addTaskToProject(pn, text) {
-  if (supa) {
-    const { data, error } = await supa.from("tasks").insert({ project_number: pn, task_name: text }).select().single();
-    if (error) throw error;
-    return normalizeTasks([{
-      id: data.id, projectNumber: data.project_number, taskName: data.task_name,
-      status: data.status, priority: data.priority
-    }])[0];
-  }
-  // Google Sheets fallback
   const res = await api.addTask({ projectNumber: pn, taskName: text });
   if (res?.task) return normalizeTasks([res.task])[0];
-  // Older backend: synthesize minimal object
-  return { id: res?.id || `tmp-${Date.now()}`, projectNumber: pn, taskName: text, name: text, status: "Backlog", priority: "Med", progress: 0 };
+  // Older server shape: res.id only → synthesize minimal object
+  return {
+    id: res?.id || `tmp-${Date.now()}`,
+    projectNumber: pn,
+    taskName: text,
+    name: text,
+    status: "Backlog",
+    priority: "Med",
+    progress: 0,
+  };
 }
 
 export default function Projects() {
@@ -79,13 +73,15 @@ export default function Projects() {
   const [projects, setProjects] = useState([]);
   const [selectedPN, setSelectedPN] = useState("");
   const [projectMeta, setProjectMeta] = useState(null);
+
   const [tasks, setTasks] = useState([]);
   const [tasksByProject, setTasksByProject] = useState(loadTasksCache());
+
   const [taskText, setTaskText] = useState("");
   const [savingTask, setSavingTask] = useState(false);
   const [error, setError] = useState("");
 
-  // Initial load: projects; prefill selection and cached tasks
+  // Initial: load projects
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -107,64 +103,81 @@ export default function Projects() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // When project selection changes:
+  // When selecting a project: show cached tasks instantly, then refresh from server
   useEffect(() => {
     if (!selectedPN) { setProjectMeta(null); setTasks([]); return; }
     let alive = true;
     (async () => {
       setError("");
-      // Show cached tasks instantly
+      // 1) instant: cached
       const cached = tasksByProject[selectedPN] || [];
       setTasks(cached);
+      // 2) fetch fresh tasks + details
       try {
-        // Fetch live tasks + meta
-        const [freshTasks, details] = await Promise.all([
+        const [fresh, details] = await Promise.all([
           fetchTasksForProject(selectedPN),
-          api.projectDetails(selectedPN).catch(() => null)
+          api.projectDetails(selectedPN).catch(() => null),
         ]);
         if (!alive) return;
-        setTasks(freshTasks);
-        const nextMap = { ...tasksByProject, [selectedPN]: freshTasks };
+        setTasks(fresh);
+        const nextMap = { ...tasksByProject, [selectedPN]: fresh };
         setTasksByProject(nextMap);
         saveTasksCache(nextMap);
         setProjectMeta(details?.project || { number: selectedPN });
       } catch (e) {
         if (!alive) return;
-        // Keep cached tasks; set minimal meta
         setProjectMeta({ number: selectedPN });
-        setError(prev => prev || String(e?.message || e));
+        setError((prev) => prev || String(e?.message || e));
       }
     })();
     return () => { alive = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedPN]);
 
-  const sortedProjects = useMemo(() => {
-    return [...projects].sort((a, b) => a.number.localeCompare(b.number));
-  }, [projects]);
+  const sortedProjects = useMemo(
+    () => [...projects].sort((a, b) => a.number.localeCompare(b.number)),
+    [projects]
+  );
 
   async function onAddTask() {
     const text = taskText.trim();
     if (!text || savingTask || !selectedPN) return;
 
-    // 1) Optimistic: show immediately
-    const optimistic = { id: `tmp-${Date.now()}`, projectNumber: selectedPN, taskName: text, name: text, status: "Backlog", priority: "Med", progress: 0, _optimistic: true };
-    setTasks(prev => [optimistic, ...prev]);
-    const map1 = { ...tasksByProject, [selectedPN]: [optimistic, ...(tasksByProject[selectedPN] || [])] };
-    setTasksByProject(map1); saveTasksCache(map1);
+    // Optimistic add (instant UI)
+    const optimistic = {
+      id: `tmp-${Date.now()}`,
+      projectNumber: selectedPN,
+      taskName: text,
+      name: text,
+      status: "Backlog",
+      priority: "Med",
+      progress: 0,
+      _optimistic: true,
+    };
+    setTasks((prev) => [optimistic, ...prev]);
+    const map1 = {
+      ...tasksByProject,
+      [selectedPN]: [optimistic, ...(tasksByProject[selectedPN] || [])],
+    };
+    setTasksByProject(map1);
+    saveTasksCache(map1);
     setTaskText("");
 
-    // 2) Sync to backend
+    // Sync to backend
     setSavingTask(true);
     try {
       const created = await addTaskToProject(selectedPN, text);
-      // replace optimistic row with real row
-      setTasks(prev => [created, ...prev.filter(t => t.id !== optimistic.id)]);
-      const map2 = { ...map1, [selectedPN]: [created, ...(map1[selectedPN].filter(t => t.id !== optimistic.id))] };
-      setTasksByProject(map2); saveTasksCache(map2);
+      // Replace optimistic with real
+      setTasks((prev) => [created, ...prev.filter((t) => t.id !== optimistic.id)]);
+      const map2 = {
+        ...map1,
+        [selectedPN]: [created, ...(map1[selectedPN].filter((t) => t.id !== optimistic.id))],
+      };
+      setTasksByProject(map2);
+      saveTasksCache(map2);
     } catch (e) {
-      // mark optimistic as failed
-      setTasks(prev => prev.map(t => t.id === optimistic.id ? { ...t, _failed: true } : t));
+      // Mark as failed (keeps the text visible so users don’t lose it)
+      setTasks((prev) => prev.map((t) => (t.id === optimistic.id ? { ...t, _failed: true } : t)));
       alert(`Add task failed: ${e?.message || e}`);
     } finally {
       setSavingTask(false);
@@ -180,7 +193,9 @@ export default function Projects() {
       {!!error && (
         <div className="text-red-400">
           {error}
-          <div className="text-xs opacity-70 mt-1">If you’re using Google Sheets, make sure API key + allowed domain + email are set.</div>
+          <div className="text-xs opacity-70 mt-1">
+            Ensure you’re signed in (email in localStorage) and API key/domain match your Apps Script.
+          </div>
         </div>
       )}
 
@@ -253,7 +268,11 @@ export default function Projects() {
               ) : (
                 <ul className="space-y-2">
                   {tasks.map((t) => (
-                    <li key={t.id} className={`rounded-lg border px-3 py-2 ${t._failed ? "border-red-500/60" : "border-white/10"}`}>
+                    <li
+                      key={t.id}
+                      className={`rounded-lg border px-3 py-2 ${t._failed ? "border-red-500/60" : "border-white/10"}`}
+                      title={t._failed ? "Failed to save to server" : ""}
+                    >
                       <div className="font-medium">{t.taskName || t.name}</div>
                       <div className="text-xs opacity-70">
                         {(t.status || "Backlog") + " · " + (t.priority || "Med")}
